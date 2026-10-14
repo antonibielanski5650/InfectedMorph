@@ -1,0 +1,14 @@
+# Safe default: generate a PNG preview; NEVER report an active stage for a preview.
+stage1:
+  enabled: true
+  # Heuristic for standard 64x64 skins. Disable for nonstandard eye placements.
+  darken-standard-eyes: true
+java-display:
+  # Experimental, requires local client tests. No Bedrock display guarantee.
+  enabled: false
+  # Set a server environment variable; never put a key in this file or Git.
+  mineskin-api-key-env: INFECTEDMORPH_MINESKIN_API_KEY
+  # MineSkin uploads the generated PNG as unlisted (not private).
+  request-timeout-seconds: 90
+  # Single serialized publishing worker; no automatic retry after HTTP 429.
+  minimum-publish-interval-seconds: 60

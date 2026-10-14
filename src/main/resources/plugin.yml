@@ -1,0 +1,21 @@
+name: InfectedMorph
+version: '${project.version}'
+main: pl.infectedmorph.InfectedMorphPlugin
+api-version: '26.2'
+description: Conservative stage 1 skin generation with explicit Java and Bedrock diagnostics.
+authors: [antonibielanski5650]
+softdepend: [floodgate, Geyser-Spigot]
+commands:
+  infect:
+    description: Faza 1 infekcji i diagnostyka wyglądu.
+    usage: /infect <stage1|normal|status>
+permissions:
+  infectedmorph.stage1:
+    description: Pozwala uruchomić fazę 1 dla siebie.
+    default: op
+  infectedmorph.normal:
+    description: Pozwala przywrócić własny normalny wygląd.
+    default: true
+  infectedmorph.status:
+    description: Pozwala odczytać diagnostykę.
+    default: true
