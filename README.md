@@ -7,10 +7,14 @@ Nie jest jeszcze potwierdzonym rozwiązaniem wizualnym dla Java + Bedrock.
 ## Stan weryfikacji
 
 Sprawdzono oficjalną dokumentację i źródła 14.10.2026. Nie uruchomiono serwera Purpur ani klientów gry.
-`mvn package` wykonano na Java 25.0.4.1 i Maven 3.9.11; pobranie API Purpur blokuje HTTP 403 z polityki sieci środowiska.
-Pełna kompilacja warstwy Bukkit/Paper, pakowanie i test serwerowy **pozostają niepotwierdzone**. Nie dostarczamy rzekomo gotowego JAR-a.
-Osobno skompilowano klasy generatora, HTTP i publikacji przez `javac --release 25` z rzeczywistym Gson;
-8 testów JUnit generatora, walidacji adresów i limitów HTTP przeszło. Szczegóły: [raport weryfikacji](docs/verification.md).
+Lokalna próba `mvn package` na Java 25.0.4.1 i Maven 3.9.11 zatrzymała się na blokadzie HTTP 403 repozytorium Purpur.
+Następnie **pełne `mvn --batch-mode --no-transfer-progress package` w GitHub Actions zakończyło się BUILD SUCCESS**
+na Temurin Java 25.0.4+1: skompilowano wszystkie klasy wraz z rzeczywistym API Purpur i spakowano JAR z relokowanym Gson.
+8 testów JUnit przeszło (0 failures, 0 errors, 0 skipped).
+[Udany build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38594570604) i
+[JAR do lokalnego testu (ZIP)](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38594570604/artifacts/11909096898).
+Nie potwierdzono jeszcze uruchomienia pluginu na serwerze ani wyświetlania skinów przez klientów.
+Szczegóły: [raport weryfikacji](docs/verification.md).
 
 ## Co zaimplementowano
 
@@ -84,6 +88,7 @@ mvn package
 ```
 
 Po udanym buildzie: `target/InfectedMorph-0.1.0-SNAPSHOT.jar` (Gson relokowany w JAR, API Purpur provided).
+Możesz też pobrać ZIP z artefaktem powyższego udanego workflow i rozpakować JAR; artefakty Actions mają termin ważności.
 Potrzebny jest dostęp do Maven Central i `repo.purpurmc.org`. W środowisku z proxy skonfiguruj Maven/proxy
 i zaufany certyfikat CA; nie wyłączaj sprawdzania TLS. Błąd pobrania API nie jest udanym buildem.
 Wersję API można świadomie nadpisać `mvn -Dpurpur.version=<sprawdzona-wersja-26.2> package`.

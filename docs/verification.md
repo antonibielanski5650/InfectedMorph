@@ -17,14 +17,23 @@
   wyłączanie heurystyki oczu; slim UV; odrzucanie legacy/HD; HTTPS; blokada obcych adresów;
   rzeczywisty lokalny HTTP z limitem odpowiedzi i bez przekierowań. Wszystkie przeszły na Java 25.
 - `git diff --check`: bez błędów whitespace.
+- Pełne `mvn --batch-mode --no-transfer-progress package` w GitHub Actions:
+  [run 38594570604](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38594570604),
+  kod `13421afefc60be8682cccc55320514d397643f20`, Temurin Java 25.0.4+1, **BUILD SUCCESS**.
+  Kompilacja wszystkich 12 klas źródłowych z prawdziwym API Purpur 26.2; 3 klasy testowe,
+  8 testów (0 failures, 0 errors, 0 skipped), pakowanie i relokacja Gson.
+  [Artefakt JAR w ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38594570604/artifacts/11909096898),
+  SHA-256 ZIP: `6fd87df5df21710c247c3e81cf1e1ea7884d744a85d109d438f9eb65c20e2dae`.
+  Pełna kompilacja jest potwierdzona pomimo lokalnej blokady sieci. Workflow nie wdraża pluginu.
 
 ## Niepotwierdzone
 
-- Pełne `mvn package`, zgodność kompilacyjna całej warstwy Bukkit/Paper i działanie JAR-a na Purpur.
+- Uruchomienie JAR-a na serwerze Purpur (zgodność kompilacyjna z API jest potwierdzona).
 - Połączenie do MineSkin i Mojang z uruchomionego pluginu, poprawność podpisu w kliencie i wygląd po podmianie.
 - Własny widok Java, pozostali obserwatorzy, peleryny, restart, quit/rejoin, kolizje z innymi pluginami skinów.
 - Wykrywanie aktywnych klientów przez rzeczywistą instalację Geyser/floodgate i renderowanie Bedrock.
 - ModelEngine, modele 3D, resource packi i fazy 2–5 — poza zakresem implementacji.
 
 Tryb domyślny nie zgłasza przemiany jako udanej. Instrukcja lokalnego testu i tabela zachowania są w README.
-Pełny build musi zostać wykonany w środowisku z dostępem do oficjalnego repozytorium Purpur przed instalacją.
+Pełny build można powtórzyć w środowisku z dostępem do oficjalnego repozytorium Purpur.
+Zbudowany JAR jest przeznaczony do lokalnych testów, nie został wdrożony na produkcję.
