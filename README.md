@@ -97,6 +97,9 @@ never disable TLS verification. The local cloud proxy previously blocked Purpur 
 in [GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) on Java 25.
 Successful runs provide **InfectedMorph-test-jar** and **InfectedMorph-stage1-previews** downloads.
 The October 14/15 0.1/0.2 artifacts are historical; use the new 0.3.0 artifact linked in draft PR #1.
+[Download the new 0.3.0 JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086/artifacts/11977610061).
+The [complete Java 25 Maven build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086)
+passed all 51 tests (0 failures/errors/skips). This verifies compilation and automated behavior, not client rendering.
 See [verification notes](docs/verification.md) for what was actually checked and what remains unverified.
 
 ## Local Purpur testing

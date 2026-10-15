@@ -1,63 +1,62 @@
-# Verification - October 15, 2026
+# Verification - October 15, 2026 - 0.3.0-SNAPSHOT
 
-## Scope
+## Implemented scope
 
-Review branch: `codex/stage1-foundation`, existing draft PR #1. The update adds visible Stage 1 intensity presets,
-UV-bounded marks, conservative/configurable eye treatment and English-only project text. It preserves the existing
-preview-only default, disabled experimental Java display, lifecycle protections and explicit Bedrock limitation.
+Existing draft PR #1 / `codex/stage1-foundation` now includes transactional appearance/movement activation,
+4 blocks/s nominal ground walking, sprint prevention, lifecycle cleanup and verified signed-profile readback.
+Java display is key-gated and enabled in new configs; missing keys or explicit disable still produce preview-only.
+The approved skin generator and committed appearance samples are unchanged from 0.2.0.
 
-## Automated and visual checks
+## Automated checks
 
-Full Java 25 build: **BUILD SUCCESS**, [Actions run 38688114241](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38688114241),
-source commit `4aa6e0346a42abce84b8e43d7edd7ce28f5f58dc`, Temurin 25.0.4+1.
-All 15 main source files compiled against the real Purpur 26.2 API. **27 tests passed; 0 failures, 0 errors, 0 skipped.**
+**Full build: BUILD SUCCESS** on Temurin Java 25.0.4+1, [Actions run 38742938086](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086).
+Source commit: `bbb3c81f9857a7f386f2a1df6a4cc99aaef201d0`. All 21 main source files compiled against the real Purpur API.
+**51 tests passed, 0 failures, 0 errors, 0 skipped**, including Paper/Mockito adapter tests.
 
-- [Download the new 0.2.0-SNAPSHOT test JAR (ZIP)](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38688114241/artifacts/11950574431)
-- [Download all intensity previews (ZIP)](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38688114241/artifacts/11950374762)
+[Download 0.3.0-SNAPSHOT JAR (ZIP)](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086/artifacts/11977610061).
+Artifact ZIP SHA-256: `f3315a201b96f6396b9b3ef411cb087aade3bc56ab488162b9bea98f33907104`.
+The initial remote build found a stale test method reference after renaming the calibration method; it was corrected
+and the full build/test/package workflow passed. No tests were removed or skipped to obtain the passing result.
 
-The local `mvn package` attempt hit the cloud proxy's HTTP 403 for the official Purpur dependency repository.
-The successful complete GitHub build resolves the compilation check; it is not a Minecraft runtime test.
+The 27 previous skin/HTTP cases remain. New tests exercise:
 
-The expanded tests cover:
+- Calibration at different unrestricted speeds with foreign speed modifiers retained unchanged.
+- Repeated sprint starts and tick correction; rejected ground starts trigger an attribute resync.
+- Ground/non-ground transitions and recalibration after external speed changes.
+- Death, logout, disable, inactive/preview state, stale-key removal and fresh respawn/rejoin controller state.
+- Partial modifier application, removal failures, released sprint policy and retained cleanup retries.
+- Actual Bukkit sprint events (mocked player), including permission to sprint again after normal and preserving another plugin's cancellation.
+- The actual Bukkit attribute adapter: transient owned modifier, idempotence, preserving foreign modifiers,
+  never changing base/walk speed/fly speed/velocity, and ignoring special movement contexts.
+- Activation ordering and rollback after apply, verify and movement failures, including failed rollback paths.
+- Java profile application on a detached copy, signed readback, original property restoration and retention of unrelated properties.
 
-- Every intensity on classic and slim: original ARGB data, alpha and fully transparent hidden RGB remain intact.
-- Independently specified Minecraft UV strips protect caps, unused slim columns and unrelated texture regions.
-- Upper head/hairline, central nose/mouth features and most source pixels stay unchanged.
-- Coverage and total color change increase from low to medium to high across both models and multiple UUIDs;
-  existing marks persist, while at least 70% of all original pixels remain unchanged even on an entirely opaque texture.
-- Medium produces visible marks on front face, torso, both arms and both legs.
-- Real UV sample fixtures retain more than 55% of visible source pixels even at high intensity;
-  unrelated opaque face overlay/hair pixels are protected.
-- Results are deterministic and respond to both UUID and original skin data.
-- Eye recognition handles different rows and eyes close to the hairline, skips ambiguous/uniform faces,
-  accepts custom/asymmetric coordinates and rejects invalid ones. Custom eye brightness decreases with intensity.
-- Existing skin URL restrictions, HTTPS upgrade, HTTP response size limits and disabled redirects remain tested.
+The local Java 25 core check passes 43 cases, excluding the Paper/Mockito adapter tests that need the actual API dependency.
+A full local `mvn package` was attempted with Maven 3.9.11 / Java 25.0.4.1 and trusted proxy CA; the cloud proxy still blocks
+`repo.purpurmc.org` with HTTP 403. GitHub Actions runs the complete Java 25 build against the real pinned Purpur API,
+including the Bukkit/Mockito cases. See the current PR checks and artifact links for the final complete result.
+The successful remote build resolves the local compilation limitation. No invented/stub server API is used to claim compatibility.
 
-Samples are generated from synthetic original skins for both models and all three intensities.
-The comparison sheets are inspected as images, not described as Minecraft screenshots.
+## API/source verification
 
-| Synthetic sample | Low changed pixels | Medium changed pixels | High changed pixels |
-| --- | --- | --- | --- |
-| Classic | 174 | 290 | 566 |
-| Slim | 170 | 305 | 549 |
+- Paper 26.2 `AttributeInstance` exposes transient modifiers and keyed removal; the plugin owns only
+  `infectedmorph:stage1_walking` and never resets the attribute's base or foreign modifier collection.
+- Paper 26.2 `PlayerToggleSprintEvent` is cancellable. The plugin cancels starts at HIGHEST and clears sprint state on ticks.
+- Paper 26.2 `CraftPlayer.setPlayerProfile` unregisters/re-registers visible observers and invokes its native self-refresh.
+  Detached-copy application/readback avoids changing the live profile before invoking that API.
+- `setWalkSpeed` would also change the movement attribute base; it is intentionally not used.
+- Geyser exposes `SessionSkinApplyEvent` and public `sendSkin` since 2.8.3; the latter can silently ignore unknown targets.
+  Full Bedrock transformation remains blocked rather than treating an API call as proof of a rendered transformation.
 
-Both samples detect four eye pixels on different rows; those eye pixels darken with intensity.
-Counts describe only these fixtures, not a promised percentage for every player skin.
-See [sample files](previews/README.md) and the [Actions workflow](https://github.com/antonibielanski5650/InfectedMorph/actions)
-for build output and downloadable JAR/preview artifacts.
+Links and scope are in [local testing](local-testing.md), [Bedrock investigation](bedrock-investigation.md), and README.
+The ground-speed formula is a nominal vanilla mechanics calculation, not an actual in-game benchmark.
 
-The local environment provides Java 25.0.4.1 and Maven 3.9.11. The local Maven attempt used proxy/CA configuration;
-GitHub Actions performed the complete Java 25 build because the official Purpur repository is blocked by the cloud proxy.
-The workflow compiles against the real pinned Purpur API, runs JUnit and packages the relocated Gson dependency.
-Historical baseline builds on October 14 passed eight tests; those old artifacts are not the updated release.
+## Not runtime-verified
 
-## Still requires actual Minecraft testing
+- Purpur plugin startup and actual server event ordering under death/respawn/disconnect and other plugins.
+- Measured 4 blocks/s on a real client; double-tap/sprint-key prediction and observer agreement.
+- MineSkin publishing with the user's key, F5 skin rendering, observer visibility, tab list, capes and restoration.
+- Actual Java/Bedrock client controls and Geyser/floodgate visibility, refresh ordering or persona geometry support.
 
-- Plugin startup and behavior on a local Purpur 26.2 server with the installed Geyser-Spigot/floodgate versions.
-- Visual quality on real player skins, outer layers, custom faces and classic/slim models at each intensity.
-- MineSkin publishing, the client's acceptance of the signed profile, F5/observer visibility, tab list, capes,
-  death/respawn, dimension changes, restart and restoration after interrupted work.
-- Permissions and cancellation races against real server events, plus other skin/nickname plugin interactions.
-- Actual Bedrock session detection and observation of changed Java skins. Bedrock transformations remain blocked.
-
-No Stages 2-5, animated models, movement/attribute changes, production deployment or ChunkVote work is included.
+The complete Windows CMD/local-server checklist documents how to verify these. No production deployment, ChunkVote
+changes, merge into main or Stages 2-5 work has been performed.
