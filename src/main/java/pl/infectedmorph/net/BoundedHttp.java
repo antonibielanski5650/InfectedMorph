@@ -34,7 +34,7 @@ public final class BoundedHttp {
             for (ByteBuffer buffer : buffers) {
                 if (buffer.remaining() > limit - bytes.size()) {
                     subscription.cancel();
-                    result.completeExceptionally(new IOException("Odpowiedź HTTP przekracza limit bajtów."));
+                    result.completeExceptionally(new IOException("The HTTP response exceeds the byte limit."));
                     return;
                 }
                 byte[] chunk = new byte[buffer.remaining()];

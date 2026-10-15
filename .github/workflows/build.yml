@@ -21,9 +21,17 @@ jobs:
           cache: maven
       - name: Compile, test and package
         run: mvn --batch-mode --no-transfer-progress package
+      - name: Generate intensity comparison previews
+        run: java -Djava.awt.headless=true -cp target/test-classes:target/classes pl.infectedmorph.skin.Stage1PreviewSamples target/stage1-previews
       - name: Save test plugin
         uses: actions/upload-artifact@v4
         with:
           name: InfectedMorph-test-jar
-          path: target/InfectedMorph-0.1.0-SNAPSHOT.jar
+          path: target/InfectedMorph-0.2.0-SNAPSHOT.jar
+          if-no-files-found: error
+      - name: Save visual inspection samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfectedMorph-stage1-previews
+          path: target/stage1-previews/
           if-no-files-found: error

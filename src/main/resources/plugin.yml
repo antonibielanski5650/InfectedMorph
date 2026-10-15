@@ -7,15 +7,15 @@ authors: [antonibielanski5650]
 softdepend: [floodgate, Geyser-Spigot]
 commands:
   infect:
-    description: Faza 1 infekcji i diagnostyka wyglądu.
+    description: Stage 1 infection and appearance diagnostics.
     usage: /infect <stage1|normal|status>
 permissions:
   infectedmorph.stage1:
-    description: Pozwala uruchomić fazę 1 dla siebie.
+    description: Allows players to generate Stage 1 for themselves.
     default: op
   infectedmorph.normal:
-    description: Pozwala przywrócić własny normalny wygląd.
+    description: Allows players to restore their original appearance.
     default: true
   infectedmorph.status:
-    description: Pozwala odczytać diagnostykę.
+    description: Allows players to view diagnostics.
     default: true

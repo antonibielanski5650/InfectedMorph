@@ -41,7 +41,7 @@ public final class MineSkinPublisher implements SkinPublisher {
         String digest = digest(png) + model.variant();
         if (cache.containsKey(digest)) return cache.get(digest);
         long remaining = nextPublishNanos - System.nanoTime();
-        if (remaining > 0) throw new IOException("Publikacja ma cooldown; spróbuj za " + (remaining / 1_000_000_000L + 1) + " s.");
+        if (remaining > 0) throw new IOException("Skin publication is on cooldown. Please try again in " + (remaining / 1_000_000_000L + 1) + " s.");
         String boundary = "InfectedMorph" + UUID.randomUUID().toString().replace("-", "");
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         field(body, boundary, "variant", model.variant());
@@ -52,7 +52,7 @@ public final class MineSkinPublisher implements SkinPublisher {
         body.writeBytes(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         nextPublishNanos = System.nanoTime() + Duration.ofSeconds(intervalSeconds).toNanos();
         var response = http.send(HttpRequest.newBuilder(URI.create("https://api.mineskin.org/v2/generate"))
-                .timeout(timeout).header("User-Agent", "InfectedMorph/0.1.0")
+                .timeout(timeout).header("User-Agent", "InfectedMorph/0.2.0")
                 .header("Authorization", "Bearer " + key)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(), 131072);
@@ -61,9 +61,9 @@ public final class MineSkinPublisher implements SkinPublisher {
             try { seconds = Integer.parseInt(response.headers().firstValue("Retry-After").orElse("60")); }
             catch (NumberFormatException ignored) { /* HTTP-date: conservative fallback */ }
             nextPublishNanos = System.nanoTime() + Duration.ofSeconds(Math.max(intervalSeconds, Math.min(3600, Math.max(60, seconds)))).toNanos();
-            throw new IOException("MineSkin: HTTP 429, odczekaj cooldown. Bez automatycznych ponowień.");
+            throw new IOException("MineSkin: HTTP 429. Please wait for the cooldown. No automatic retries will be attempted.");
         }
-        if (response.statusCode() != 200) throw new IOException("MineSkin: HTTP " + response.statusCode() + ". Sprawdź klucz, dostęp do sieci i status usługi.");
+        if (response.statusCode() != 200) throw new IOException("MineSkin: HTTP " + response.statusCode() + ". Check your API key, network access and service status.");
         SignedTexture texture;
         URI publishedUri;
         try {
@@ -79,16 +79,16 @@ public final class MineSkinPublisher implements SkinPublisher {
             String variant = skin.has("metadata") ? skin.getAsJsonObject("metadata").get("model").getAsString() : "classic";
             if (!model.variant().equals(variant)) throw new IllegalArgumentException();
         } catch (RuntimeException error) {
-            throw new IOException("MineSkin zwrócił niepełną lub niezgodną teksturę/podpis/model.");
+            throw new IOException("MineSkin returned an incomplete or incompatible texture, signature or model.");
         }
         // Do not apply a cached/signing-service response that contains another player's image.
         var expected = ImageIO.read(new ByteArrayInputStream(png));
         var published = new SkinDownloader(http).download(publishedUri);
-        if (expected == null || expected.getWidth() != 64 || expected.getHeight() != 64) throw new IOException("Niepoprawny wygenerowany PNG.");
+        if (expected == null || expected.getWidth() != 64 || expected.getHeight() != 64) throw new IOException("The generated PNG is invalid.");
         for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) {
             int a = expected.getRGB(x, y), b = published.getRGB(x, y);
             if ((a >>> 24) != (b >>> 24) || ((a >>> 24) != 0 && a != b)) {
-                throw new IOException("Tekstura MineSkin nie odpowiada wygenerowanemu PNG. Przemiana zablokowana.");
+                throw new IOException("The MineSkin texture does not match the generated PNG. Transformation was blocked.");
             }
         }
         cache.put(digest, texture);

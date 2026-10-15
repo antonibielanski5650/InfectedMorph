@@ -32,8 +32,8 @@ public final class ClientDetector {
                 }
             } catch (ReflectiveOperationException | LinkageError | RuntimeException e) { failed = true; }
         }
-        return failed ? new Detection(Kind.UNKNOWN, "API Geyser/floodgate niedostępne; przemiana zablokowana")
-                : new Detection(Kind.JAVA, "brak sesji Bedrock w lokalnych API");
+        return failed ? new Detection(Kind.UNKNOWN, "Geyser/floodgate API unavailable; transformation blocked")
+                : new Detection(Kind.JAVA, "no Bedrock session reported by local APIs");
     }
 
     private Class<?> load(String pluginName, String className) throws ClassNotFoundException {

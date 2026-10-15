@@ -39,14 +39,15 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     private SkinDownloader downloader;
     private SkinPublisher publisher;
     private boolean stage1Enabled;
-    private boolean darkenEyes;
+    private InfectionIntensity intensity;
+    private EyeTreatment eyes;
     private String publicationStatus;
     private volatile boolean stopping;
 
     private static final class Session {
         InfectionStage stage = InfectionStage.NORMAL;
         String state = "NORMAL";
-        String detail = "Normalny wygląd.";
+        String detail = "Normal appearance.";
         PlayerProfile original;
         String appliedValue;
         Future<?> job;
@@ -57,7 +58,12 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     @Override public void onEnable() {
         saveDefaultConfig();
         stage1Enabled = getConfig().getBoolean("stage1.enabled", true);
-        darkenEyes = getConfig().getBoolean("stage1.darken-standard-eyes", true);
+        try { intensity = InfectionIntensity.parse(getConfig().getString("stage1.infection-intensity", "medium")); }
+        catch (IllegalArgumentException invalid) {
+            intensity = InfectionIntensity.MEDIUM;
+            getLogger().warning("Invalid stage1.infection-intensity; expected low, medium or high. Using medium.");
+        }
+        eyes = readEyeSettings();
         http = new BoundedHttp();
         downloader = new SkinDownloader(http);
         // Bounded queue and one serialized worker prevent upload bursts and unbounded memory growth.
@@ -72,37 +78,58 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         if (display && key != null && !key.isBlank() && !key.contains("\r") && !key.contains("\n")) {
             publisher = new MineSkinPublisher(http, key.trim(), bounded("java-display.request-timeout-seconds", 90, 15, 180),
                     bounded("java-display.minimum-publish-interval-seconds", 60, 10, 3600));
-            publicationStatus = "JAVA_EXPERIMENTAL: MineSkin skonfigurowany; widoczność wymaga testów klientów";
+            publicationStatus = "JAVA_EXPERIMENTAL: MineSkin configured; visibility requires real client testing";
         } else {
-            publicationStatus = display ? "PREVIEW_ONLY: brak poprawnego klucza MineSkin w zmiennej środowiskowej"
+            publicationStatus = display ? "PREVIEW_ONLY: no valid MineSkin key in the configured environment variable"
                     : "PREVIEW_ONLY: java-display.enabled=false";
         }
-        var command = java.util.Objects.requireNonNull(getCommand("infect"), "Brak komendy infect w plugin.yml");
+        var command = java.util.Objects.requireNonNull(getCommand("infect"), "Missing infect command in plugin.yml");
         command.setExecutor(this);
         command.setTabCompleter(this);
         Bukkit.getPluginManager().registerEvents(this, this);
-        getLogger().info("Serwer: " + Bukkit.getVersion() + "; Java: " + Runtime.version());
-        getLogger().info("Stage1 enabled=" + stage1Enabled + "; " + publicationStatus);
+        getLogger().info("Server: " + Bukkit.getVersion() + "; Java: " + Runtime.version());
+        getLogger().info("Stage 1 enabled=" + stage1Enabled + "; intensity=" + intensity.configValue() + "; eyes=" + eyes.mode() + "; " + publicationStatus);
         getLogger().info("Geyser-Spigot=" + version("Geyser-Spigot") + "; floodgate=" + version("floodgate"));
-        getLogger().warning("Bedrock: adapter wyglądu niezaimplementowany. Brak gwarancji Java -> Bedrock. Fazy 2-5 i modele 3D niezaimplementowane.");
+        getLogger().warning("Bedrock skin transformation is not implemented yet. Java-to-Bedrock visibility is unverified. Stages 2-5 and 3D models are not implemented.");
     }
 
     private int bounded(String path, int fallback, int min, int max) {
         return Math.max(min, Math.min(max, getConfig().getInt(path, fallback)));
     }
 
+    private EyeTreatment readEyeSettings() {
+        // Retain the old opt-out for existing configurations without assuming fixed eye positions.
+        if (!getConfig().getBoolean("stage1.darken-standard-eyes", true)) return EyeTreatment.off();
+        try {
+            var mode = EyeTreatment.Mode.valueOf(getConfig().getString("stage1.eyes.mode", "auto").trim().toUpperCase(Locale.ROOT));
+            List<EyeTreatment.Pixel> pixels = new java.util.ArrayList<>();
+            if (mode == EyeTreatment.Mode.CUSTOM) {
+                for (String entry : getConfig().getStringList("stage1.eyes.pixels")) {
+                    String[] coordinates = entry.split(",", -1);
+                    if (coordinates.length != 2) throw new IllegalArgumentException();
+                    pixels.add(new EyeTreatment.Pixel(Integer.parseInt(coordinates[0].trim()), Integer.parseInt(coordinates[1].trim())));
+                }
+                if (pixels.isEmpty()) throw new IllegalArgumentException();
+            }
+            return new EyeTreatment(mode, pixels);
+        } catch (IllegalArgumentException invalid) {
+            getLogger().warning("Invalid stage1.eyes settings. Use auto, off, or custom with x,y pixels in 0..7. Eye darkening is disabled.");
+            return EyeTreatment.off();
+        }
+    }
+
     private String version(String name) {
         var plugin = Bukkit.getPluginManager().getPlugin(name);
-        return plugin == null ? "brak" : plugin.getPluginMeta().getVersion() + (plugin.isEnabled() ? " (enabled)" : " (disabled)");
+        return plugin == null ? "not installed" : plugin.getPluginMeta().getVersion() + (plugin.isEnabled() ? " (enabled)" : " (disabled)");
     }
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length != 1) { say(sender, "Użycie: /infect <stage1|normal|status>"); return true; }
+        if (args.length != 1) { say(sender, "Usage: /infect <stage1|normal|status>"); return true; }
         String subcommand = args[0].toLowerCase(Locale.ROOT);
-        if (!List.of("stage1", "normal", "status").contains(subcommand)) { say(sender, "Nieznana opcja. Użycie: /infect <stage1|normal|status>"); return true; }
-        if (!sender.hasPermission("infectedmorph." + subcommand)) { say(sender, "Brak uprawnienia infectedmorph." + subcommand); return true; }
+        if (!List.of("stage1", "normal", "status").contains(subcommand)) { say(sender, "Unknown option. Usage: /infect <stage1|normal|status>"); return true; }
+        if (!sender.hasPermission("infectedmorph." + subcommand)) { say(sender, "You do not have permission to use this command. Required: infectedmorph." + subcommand); return true; }
         if (subcommand.equals("status")) { status(sender); return true; }
-        if (!(sender instanceof Player player)) { say(sender, "Ta komenda jest dostępna tylko dla gracza."); return true; }
+        if (!(sender instanceof Player player)) { say(sender, "Only players can use this command."); return true; }
         if (subcommand.equals("normal")) normal(player); else stage1(player);
         return true;
     }
@@ -110,37 +137,37 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     private void stage1(Player player) {
         Session previous = sessions.get(player.getUniqueId());
         reconcile(player, previous);
-        if (previous != null && previous.stage == InfectionStage.STAGE1) { say(player, "Faza 1 jest już ustawiona w profilu serwera; /infect normal przywraca skin."); return; }
-        if (previous != null && previous.job != null && !previous.job.isDone()) { say(player, "Zadanie już trwa; /infect normal je anuluje."); return; }
+        if (previous != null && previous.stage == InfectionStage.STAGE1) { say(player, "Stage 1 is already set in your server profile. Use /infect normal to restore your skin."); return; }
+        if (previous != null && previous.job != null && !previous.job.isDone()) { say(player, "A skin task is already running. Use /infect normal to cancel it."); return; }
         Session session = new Session();
         sessions.put(player.getUniqueId(), session);
-        if (!stage1Enabled) { blocked(player, session, "Faza 1 wyłączona w config.yml."); return; }
+        if (!stage1Enabled) { blocked(player, session, "Stage 1 is disabled in config.yml."); return; }
         var detection = detector.detect(player.getUniqueId());
         if (detection.kind() != ClientDetector.Kind.JAVA) {
             blocked(player, session, detection.kind() == ClientDetector.Kind.BEDROCK
-                    ? "Bedrock: brak zweryfikowanego adaptera tekstury/odświeżania. Wygląd i faza pozostają normalne."
+                    ? "Bedrock skin transformation is not implemented yet. Your appearance and stage remain normal."
                     : detection.detail());
             return;
         }
         PlayerProfile original = player.getPlayerProfile();
         if (original.getTextures().getSkin() == null) {
-            blocked(player, session, "Profil nie zawiera tekstury. Nie zastępuję go skinem Steve/Alex. Sprawdź online-mode lub dostawcę skinów.");
+            blocked(player, session, "Your profile has no skin texture. No default skin will be substituted. Check online-mode or your skin provider.");
             return;
         }
         URI source;
         try { source = SkinDownloader.trustedTexture(original.getTextures().getSkin().toURI()); }
-        catch (Exception e) { blocked(player, session, "Nieobsługiwane źródło tekstury; wymagane textures.minecraft.net."); return; }
+        catch (Exception e) { blocked(player, session, "Unsupported skin source; textures.minecraft.net is required."); return; }
         SkinModel model = original.getTextures().getSkinModel().name().equals("SLIM") ? SkinModel.SLIM : SkinModel.WIDE;
         session.original = original.clone();
         session.state = "GENERATING";
-        session.detail = "Pobieranie oryginału i generowanie PNG poza wątkiem serwera.";
+        session.detail = "Downloading the original skin and generating a PNG on the skin worker.";
         UUID id = player.getUniqueId();
         Path previewRoot = getDataFolder().toPath().resolve("previews");
         try {
             session.job = worker.submit(() -> {
                 try {
                     var image = downloader.download(source);
-                    var infected = generator.generate(image, model, id, darkenEyes);
+                    var infected = generator.generate(image, model, id, intensity, eyes);
                     byte[] originalPng = png(image), infectedPng = png(infected);
                     if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
                     Path directory = previewRoot.resolve(id.toString());
@@ -153,35 +180,35 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
                 } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
                 catch (Exception error) {
                     String detail = error instanceof IOException || error instanceof IllegalArgumentException
-                            ? error.getMessage() : "Nieoczekiwany błąd " + error.getClass().getSimpleName();
+                            ? error.getMessage() : "Unexpected error: " + error.getClass().getSimpleName();
                     schedule(() -> {
                         if (!current(player, session)) return;
                         session.state = "ERROR";
                         session.detail = detail;
-                        say(player, "Faza pozostaje NORMAL. " + detail);
+                        say(player, "Your stage remains NORMAL. " + detail);
                         getLogger().warning("Stage1 " + id + ": " + detail);
                     });
                 }
             });
-            say(player, publisher == null ? "Generuję podgląd PNG. Skin nie zostanie zastosowany: " + publicationStatus
-                    : "Generuję i publikuję teksturę Java. Faza pozostaje NORMAL do zakończenia operacji.");
-        } catch (RejectedExecutionException busy) { blocked(player, session, "Kolejka pełna. Spróbuj ponownie później."); }
+            say(player, publisher == null ? "Generating a PNG preview. Your skin will not be applied: " + publicationStatus
+                    : "Generating and publishing a Java skin texture. Your stage remains NORMAL until the operation completes.");
+        } catch (RejectedExecutionException busy) { blocked(player, session, "The skin queue is full. Please try again later."); }
     }
 
     private void finish(Player player, Session session, WorkResult result) {
         if (!current(player, session)) return;
         if (result.texture() == null) {
             session.state = "PREVIEW_READY";
-            session.detail = "PNG: " + result.preview() + "; " + publicationStatus;
-            say(player, "Podgląd gotowy: " + result.preview() + ". Skin NIE został zmieniony; faza NORMAL.");
+            session.detail = "PNG: " + result.preview() + "; intensity=" + intensity.configValue() + "; " + publicationStatus;
+            say(player, "Stage 1 infection preview generated successfully! PNG: " + result.preview() + ". Your skin has not changed; your stage is NORMAL.");
             return;
         }
         if (!textures(player.getPlayerProfile()).equals(textures(session.original))) {
-            blocked(player, session, "Skin zmienił się w trakcie generowania. Wynik odrzucony; wykonaj komendę ponownie.");
+            blocked(player, session, "Your skin changed during generation. The result was discarded; please run the command again.");
             return;
         }
         if (!player.hasPermission("infectedmorph.stage1") || detector.detect(player.getUniqueId()).kind() != ClientDetector.Kind.JAVA) {
-            blocked(player, session, "Zmieniły się uprawnienia lub rodzaj klienta. Wynik odrzucony.");
+            blocked(player, session, "Your permissions or client type changed. The result was discarded.");
             return;
         }
         // Set ownership before mutation so a partially failing API call can still be restored.
@@ -190,40 +217,42 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             backend.apply(player, result.texture());
             session.stage = InfectionStage.STAGE1;
             session.state = "JAVA_PROFILE_APPLIED";
-            session.detail = "Profil Java ustawiony; potwierdź wygląd na klientach. Bedrock niezweryfikowany.";
-            say(player, "Faza 1 ustawiona w profilu Java. Sprawdź widoczność u drugiego gracza i w F5; brak gwarancji Bedrock.");
+            session.detail = "Java profile applied; verify the appearance on real clients. Bedrock visibility is unverified.";
+            say(player, "Stage 1 has been set in your Java profile. Check F5 and another Java observer; Bedrock visibility is unverified.");
         } catch (RuntimeException error) {
             try { backend.restore(player, session.original); session.appliedValue = null; }
             catch (RuntimeException restoreError) {
                 session.stage = InfectionStage.STAGE1;
                 session.state = "RESTORE_REQUIRED";
-                session.detail = "Błąd API i rollbacku; profil może być zmieniony. Wykonaj /infect normal lub połącz się ponownie.";
+                session.detail = "Profile update and rollback failed; your profile may have changed. Use /infect normal or reconnect.";
                 say(player, session.detail);
                 return;
             }
-            blocked(player, session, "Błąd ustawiania profilu; oryginalna tekstura przywrócona.");
+            blocked(player, session, "Profile update failed; your original texture has been restored.");
         }
     }
 
     private void normal(Player player) {
         Session session = sessions.get(player.getUniqueId());
+        boolean restored = false;
         if (session != null && session.job != null) session.job.cancel(true);
         if (session != null && session.appliedValue != null && ownsTexture(player, session)) {
-            try { backend.restore(player, session.original); }
+            try { backend.restore(player, session.original); restored = true; }
             catch (RuntimeException error) {
                 session.state = "RESTORE_REQUIRED";
-                session.detail = "Przywracanie nie powiodło się. Spróbuj ponownie lub połącz się ponownie.";
+                session.detail = "Restoration failed. Please try again or reconnect.";
                 say(player, session.detail);
-                getLogger().warning("Przywracanie " + player.getUniqueId() + ": " + error.getClass().getSimpleName());
+                getLogger().warning("Restoration for " + player.getUniqueId() + ": " + error.getClass().getSimpleName());
                 return;
             }
         } else if (session != null && session.appliedValue != null) {
             sessions.remove(player.getUniqueId());
-            say(player, "Inny plugin zmienił teksturę. Usunięto stan infekcji bez nadpisywania aktualnego skina.");
+            say(player, "Another plugin changed your texture. Infection state was cleared without overwriting your current skin.");
             return;
         }
         sessions.remove(player.getUniqueId());
-        say(player, "Faza NORMAL. Zadanie anulowane; tekstura InfectedMorph przywrócona, jeśli była aktywna.");
+        say(player, restored ? "Your original appearance has been restored! Your stage is NORMAL."
+                : "Your stage is NORMAL. Any pending skin task has been cancelled; no applied skin needed restoration.");
     }
 
     private boolean ownsTexture(Player player, Session session) {
@@ -236,7 +265,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             session.stage = InfectionStage.NORMAL;
             session.appliedValue = null;
             session.state = "EXTERNAL_SKIN_CHANGE";
-            session.detail = "Inny plugin zmienił teksturę. InfectedMorph nie nadpisuje tej zmiany.";
+            session.detail = "Another plugin changed your texture. InfectedMorph will not overwrite that change.";
         }
     }
 
@@ -259,21 +288,21 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     private void blocked(Player player, Session session, String detail) {
         session.state = "BLOCKED";
         session.detail = detail;
-        say(player, "Faza NORMAL. " + detail);
+        say(player, "Your stage is NORMAL. " + detail);
     }
 
     private void status(CommandSender sender) {
-        say(sender, "Serwer: " + Bukkit.getVersion() + "; Java " + Runtime.version());
-        say(sender, "Faza 1 enabled=" + stage1Enabled + "; " + publicationStatus);
+        say(sender, "Server: " + Bukkit.getVersion() + "; Java " + Runtime.version());
+        say(sender, "Stage 1 enabled=" + stage1Enabled + "; intensity=" + intensity.configValue() + "; eyes=" + eyes.mode() + "; " + publicationStatus);
         say(sender, "Geyser-Spigot=" + version("Geyser-Spigot") + "; floodgate=" + version("floodgate"));
-        say(sender, "Bedrock: brak adaptera wyglądu; widoczność zmian Java na Bedrock niezweryfikowana.");
+        say(sender, "Bedrock skin transformation is not implemented yet; Java skin visibility on Bedrock is unverified.");
         if (sender instanceof Player player) {
             var detection = detector.detect(player.getUniqueId());
             Session session = sessions.get(player.getUniqueId());
             reconcile(player, session);
-            say(sender, "Klient: " + detection.kind() + " (" + detection.detail() + ")");
-            say(sender, "Faza: " + (session == null ? InfectionStage.NORMAL : session.stage)
-                    + "; stan: " + (session == null ? "NORMAL" : session.state));
+            say(sender, "Client: " + detection.kind() + " (" + detection.detail() + ")");
+            say(sender, "Stage: " + (session == null ? InfectionStage.NORMAL : session.stage)
+                    + "; state: " + (session == null ? "NORMAL" : session.state));
             if (session != null) say(sender, session.detail);
         }
     }
@@ -297,7 +326,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             Session session = sessions.get(player.getUniqueId());
             if (session != null && session.appliedValue != null && ownsTexture(player, session)) {
                 try { backend.restore(player, session.original); }
-                catch (RuntimeException e) { getLogger().warning("Nie udało się przywrócić " + player.getUniqueId() + "; wymagane ponowne połączenie."); }
+                catch (RuntimeException e) { getLogger().warning("Could not restore " + player.getUniqueId() + "; the player must reconnect."); }
             }
         }
         sessions.clear();
@@ -306,7 +335,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
 
     private static byte[] png(java.awt.image.BufferedImage image) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        if (!ImageIO.write(image, "png", output)) throw new IOException("Brak kodera PNG.");
+        if (!ImageIO.write(image, "png", output)) throw new IOException("No PNG encoder is available.");
         return output.toByteArray();
     }
 

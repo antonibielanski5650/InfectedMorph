@@ -1,8 +1,14 @@
 # Safe default: generate a PNG preview; NEVER report an active stage for a preview.
 stage1:
   enabled: true
-  # Heuristic for standard 64x64 skins. Disable for nonstandard eye placements.
-  darken-standard-eyes: true
+  # low: subtle; medium: clearly visible; high: stronger cinematic marks.
+  infection-intensity: medium
+  eyes:
+    # auto searches for paired contrasting features and skips ambiguous faces.
+    # custom uses only the pixels below; off leaves eye colors unchanged.
+    mode: auto
+    # Local x,y coordinates in the 8x8 front face (0..7), used only in custom mode.
+    pixels: ['1,4', '2,4', '5,4', '6,4']
 java-display:
   # Experimental, requires local client tests. No Bedrock display guarantee.
   enabled: false
