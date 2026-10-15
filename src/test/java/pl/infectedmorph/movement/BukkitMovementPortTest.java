@@ -58,7 +58,7 @@ class BukkitMovementPortTest {
     @Test void treatsMissingAttributeAsAnActivationErrorWithoutChangingAbilities() {
         Player player=mock(Player.class);
         var port=new BukkitMovementPort(player,()->null);
-        assertThrows(IllegalStateException.class,port::baseSpeed);
+        assertThrows(IllegalStateException.class,port::unrestrictedGroundSpeed);
         assertDoesNotThrow(port::removeOwnedModifier);
         verifyNoInteractions(player);
     }

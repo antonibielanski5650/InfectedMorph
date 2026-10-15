@@ -15,12 +15,14 @@ class Stage1MovementTest {
     static final class Subject implements MovementPort {
         double base = .1;
         boolean alive = true, ground = true, sprinting = true, rejectRemoval, failAfterPut;
+        int writes;
         final Map<String, Double> modifiers = new HashMap<>(Map.of("another_plugin:bonus", .25));
         public boolean aliveAndOnline() { return alive; }
         public boolean ordinaryGroundWalking() { return ground; }
         public double unrestrictedGroundSpeed() { return base * (1 + modifiers.getOrDefault("another_plugin:bonus",0.0)); }
         public void stopSprinting() { sprinting = false; }
         public void putOwnedModifier(double amount) {
+            writes++;
             modifiers.put("infectedmorph:stage1_walking", amount);
             if (failAfterPut) throw new IllegalStateException("Simulated partial API failure");
         }
@@ -48,8 +50,10 @@ class Stage1MovementTest {
         assertFalse(p.sprinting);
         for (int attempt = 0; attempt < 20; attempt++) {
             p.sprinting = true;
+            int previousWrites = p.writes;
             assertTrue(movement.handleSprintAttempt(id, true));
             assertFalse(p.sprinting);
+            assertTrue(p.writes > previousWrites, "Sprint rejection must trigger a ground attribute resync");
         }
         p.sprinting = true;
         assertTrue(movement.tick().isEmpty());

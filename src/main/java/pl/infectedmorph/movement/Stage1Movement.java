@@ -40,7 +40,14 @@ public final class Stage1Movement {
     /** True means the event adapter must cancel this sprint start, regardless of input device. */
     public boolean handleSprintAttempt(UUID id, boolean starting) {
         if (!starting || !isActive(id)) return false;
-        entries.get(id).port.stopSprinting();
+        Entry entry = entries.get(id);
+        entry.port.stopSprinting();
+        // Reject client prediction too: re-add our ground modifier to dirty the attribute and resend it.
+        // Without this, a cancelled sprint start can leave a vanilla client's locally predicted sprint bonus.
+        if (entry.port.ordinaryGroundWalking()) {
+            entry.port.removeOwnedModifier();
+            entry.port.putOwnedModifier(WalkingSpeed.modifierAmount(entry.port.unrestrictedGroundSpeed()));
+        }
         return true;
     }
 
