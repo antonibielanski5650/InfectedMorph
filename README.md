@@ -92,6 +92,9 @@ The official Purpur repository and Maven Central must be reachable. For managed 
 never disable TLS verification. The local cloud proxy previously blocked Purpur with HTTP 403, so the complete build also runs
 in [GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) on Java 25.
 Successful runs provide **InfectedMorph-test-jar** and **InfectedMorph-stage1-previews** downloads.
+The updated [successful Java 25 build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38688114241)
+passed all 27 tests: [new JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38688114241/artifacts/11950574431)
+and [preview ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38688114241/artifacts/11950374762).
 See [verification notes](docs/verification.md) for what was actually checked and what remains unverified.
 
 ## Local Purpur testing
