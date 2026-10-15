@@ -115,7 +115,10 @@ Output: `target/InfectedMorph-0.4.0-SNAPSHOT.jar`. Purpur API is pinned to **26.
 Gson is bundled and relocated. The official Purpur repository and Maven Central must be reachable.
 [GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) runs the full Java 25 build and publishes
 `InfectedMorph-test-jar`, `InfectedMorph-stage1-previews` and `InfectedMorph-stage2-previews` ZIP artifacts.
-Use the 0.4.0 build linked in [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1).
+[Download 0.4.0 JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909/artifacts/11981491853) ·
+[Stage 2 preview ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909/artifacts/11981276966).
+The [full Java 25 Maven build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909) passed all **69 tests**.
+Review [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1); nothing is merged.
 [Verification and current build evidence](docs/verification.md) distinguishes automated checks from client testing.
 
 Follow [Windows CMD setup and local Minecraft test steps](docs/local-testing.md) for secure environment-key configuration,

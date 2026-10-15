@@ -24,4 +24,4 @@ java -Djava.awt.headless=true -cp target/test-classes:target/classes pl.infected
 ```
 
 On Windows CMD, use `target\test-classes;target\classes` as the classpath. GitHub Actions also publishes these images
-as `InfectedMorph-stage2-previews`. Real skins, armor, lighting, actual F5/observer visibility and client UV rendering need local testing.
+as [InfectedMorph-stage2-previews ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909/artifacts/11981276966). Real skins, armor, lighting, actual F5/observer visibility and client UV rendering need local testing.
