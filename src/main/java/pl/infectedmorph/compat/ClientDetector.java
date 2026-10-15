@@ -41,4 +41,17 @@ public final class ClientDetector {
         if (plugin == null) throw new ClassNotFoundException(pluginName);
         return Class.forName(className, true, plugin.getClass().getClassLoader());
     }
+
+    public String skinCapabilities() {
+        if (!Bukkit.getPluginManager().isPluginEnabled("Geyser-Spigot")) return "No local Geyser; Bedrock skin adapter NOT_IMPLEMENTED.";
+        try {
+            Class<?> connection = load("Geyser-Spigot", "org.geysermc.geyser.api.connection.GeyserConnection");
+            Class<?> skinData = load("Geyser-Spigot", "org.geysermc.geyser.api.skin.SkinData");
+            connection.getMethod("sendSkin", UUID.class, skinData);
+            load("Geyser-Spigot", "org.geysermc.geyser.api.event.bedrock.SessionSkinApplyEvent");
+            return "Public sendSkin and SessionSkinApplyEvent available; full Bedrock adapter NOT_IMPLEMENTED, visibility UNVERIFIED.";
+        } catch (ReflectiveOperationException | LinkageError | RuntimeException error) {
+            return "Required Geyser skin API unavailable in this installation; adapter NOT_IMPLEMENTED.";
+        }
+    }
 }

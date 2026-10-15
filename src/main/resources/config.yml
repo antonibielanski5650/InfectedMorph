@@ -1,4 +1,4 @@
-# Safe default: generate a PNG preview; NEVER report an active stage for a preview.
+# No valid API key means preview-only: no active stage or movement restrictions.
 stage1:
   enabled: true
   # low: subtle; medium: clearly visible; high: stronger cinematic marks.
@@ -10,8 +10,9 @@ stage1:
     # Local x,y coordinates in the 8x8 front face (0..7), used only in custom mode.
     pixels: ['1,4', '2,4', '5,4', '6,4']
 java-display:
-  # Experimental, requires local client tests. No Bedrock display guarantee.
-  enabled: false
+  # Java profile application is enabled when a valid API key is present.
+  # Set false for explicit preview-only mode. Real client rendering is unverified.
+  enabled: true
   # Set a server environment variable; never put a key in this file or Git.
   mineskin-api-key-env: INFECTEDMORPH_MINESKIN_API_KEY
   # MineSkin uploads the generated PNG as unlisted (not private).

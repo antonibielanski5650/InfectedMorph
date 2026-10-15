@@ -52,7 +52,7 @@ public final class MineSkinPublisher implements SkinPublisher {
         body.writeBytes(("\r\n--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
         nextPublishNanos = System.nanoTime() + Duration.ofSeconds(intervalSeconds).toNanos();
         var response = http.send(HttpRequest.newBuilder(URI.create("https://api.mineskin.org/v2/generate"))
-                .timeout(timeout).header("User-Agent", "InfectedMorph/0.2.0")
+                .timeout(timeout).header("User-Agent", "InfectedMorph/0.3.0")
                 .header("Authorization", "Bearer " + key)
                 .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                 .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray())).build(), 131072);
