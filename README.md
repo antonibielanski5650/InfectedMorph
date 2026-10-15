@@ -16,7 +16,7 @@ Bedrock transformations remain blocked, and Java-to-Bedrock skin visibility rema
 | `/infect stage1` | `infectedmorph.stage1` (op) | Approved Stage 1 skin; approximately 4 blocks/s walking; sprinting blocked. |
 | `/infect stage2` | `infectedmorph.stage2` (op) | Separate Stage 2 skin; approximately 6 blocks/s walking and 9 blocks/s sprinting. |
 | `/infect normal` | `infectedmorph.normal` (everyone) | Cancel pending work, restore original owned texture, remove only owned movement/scale modifiers. |
-| `/infect status` | `infectedmorph.status` (everyone) | Actual stage, preview/applied/recovery state, movement, client diagnostics and current server bounding box; console diagnostics supported. |
+| `/infect status` | `infectedmorph.status` (everyone) | Actual stage, preview/applied/recovery state, movement, actual SCALE, client diagnostics and current server bounding box; console diagnostics supported. |
 
 Permissions use standard Bukkit `hasPermission`, including LuckPerms:
 
@@ -122,8 +122,9 @@ Output: `target/InfectedMorph-0.4.1-SNAPSHOT.jar`. Purpur API is pinned to **26.
 Gson is bundled and relocated. The official Purpur repository and Maven Central must be reachable.
 [GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) runs the full Java 25 build and publishes
 `InfectedMorph-test-jar`, `InfectedMorph-stage1-previews` and `InfectedMorph-stage2-previews` ZIP artifacts.
-Use the new 0.4.1 JAR linked in [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1).
-The full Java 25 Maven workflow publishes downloadable JAR and unchanged approved skin preview artifacts.
+[Download 0.4.1 JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38754698108/artifacts/11982089259).
+The [full Java 25 Maven build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38754698108) passed **81 tests**.
+Review [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1); it remains unmerged.
 [Verification and current build evidence](docs/verification.md) distinguishes automated checks from client testing.
 
 Follow [Windows CMD setup and local Minecraft test steps](docs/local-testing.md) for secure environment-key configuration,

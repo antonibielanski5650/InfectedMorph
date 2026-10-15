@@ -9,7 +9,19 @@ MineSkin behavior and both approved skin designs remain unchanged. No skin gener
 Local Java 25 core suite: **66 passed**, including six new scale lifecycle cases (before the real Bukkit/Mockito adapter suite).
 A local full Maven build was attempted with Java 25/Maven 3.9.11. The managed proxy blocks the official Purpur repository
 with HTTP 403; no TLS checks were disabled or substitute API stubs used. The full build runs in GitHub Actions against
-real pinned `purpur-api:26.2.build.2621-stable`. Final build evidence/artifact links are recorded after completion.
+real pinned `purpur-api:26.2.build.2621-stable`.
+
+**Full Maven build: BUILD SUCCESS — 81 tests passed, 0 failures, 0 errors, 0 skipped.**
+[Java 25 Actions run 38754698108](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38754698108)
+compiled 24 main and 16 test source files. Code/artifact commit: `b2b3e75a19e64addbb29ba09d6e56cc087f5ab44`.
+Subsequent documentation-only updates record these links without changing the packaged code.
+
+- [Download 0.4.1-SNAPSHOT JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38754698108/artifacts/11982089259)
+- [Unchanged Stage 1 preview ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38754698108/artifacts/11982328925)
+- [Unchanged Stage 2 preview ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38754698108/artifacts/11982039260)
+
+Extract `InfectedMorph-0.4.1-SNAPSHOT.jar` from the JAR ZIP. GitHub sign-in/repository access may be required.
+JAR artifact ZIP SHA-256: `a74263d93415f591d7111d2c2c6903d518f68e13d7fb924e83e845f85a0fc8e8`.
 
 New tests cover:
 
