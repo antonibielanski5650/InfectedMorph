@@ -109,7 +109,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         getLogger().info("Stage 1 enabled=" + stage1Enabled + "; intensity=" + intensity.configValue() + "; eyes=" + eyes.mode() + "; " + publicationStatus);
         getLogger().info("Geyser-Spigot=" + version("Geyser-Spigot") + "; floodgate=" + version("floodgate"));
         getLogger().info(detector.skinCapabilities());
-        getLogger().warning("Bedrock skin transformation is not implemented yet. Java-to-Bedrock visibility is unverified. Stages 3-5 and 3D models are not implemented. Stage 2 exact 1.5 x 3 dimensions are unsupported; size is unchanged.");
+        getLogger().warning("Bedrock skin transformation is not implemented yet. Java-to-Bedrock visibility is unverified. Stages 3-5 and 3D models are not implemented. Stage 2 uses native 5/3 scale (standard standing size about 1.0 x 3.0); 1.5-block width is not implemented.");
     }
 
     private int bounded(String path, int fallback, int min, int max) {
@@ -250,7 +250,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             blocked(player, session, "Your permissions or client type changed. The result was discarded.");
             return;
         }
-        // Retain recovery data before mutation. No active stage is reported until BOTH steps succeed.
+        // Retain recovery data before mutation. No active stage is reported until appearance, movement AND native scale setup succeed.
         session.appliedValue = result.texture().value();
         session.appliedSignature = result.texture().signature();
         var activation = ActivationTransaction.activate(
@@ -268,11 +268,11 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             session.state = "JAVA_PROFILE_APPLIED";
             session.detail = "Signed Java texture verified; native self/observer refresh requested. Rendering UNVERIFIED. " + movementDescription(session.stage);
             say(player, session.stage.label() + " is active: Java profile applied. " + movementDescription(session.stage) + " Verify F5 and another Java observer; client rendering is not confirmed.");
-            if (session.stage == InfectionStage.STAGE2) say(player, "Size unchanged: exact 1.5-block width and 3-block height are unsupported by the public scale API.");
+            if (session.stage == InfectionStage.STAGE2) say(player, "Native scale multiplier: 5/3. Standard standing size: approximately 1.0 block wide x 3.0 blocks tall; 1.5-block width is not implemented. Foreign scale modifiers remain effective.");
         } else if (activation.outcome() == ActivationTransaction.Outcome.ROLLED_BACK) {
             session.appliedValue = null;
             session.appliedSignature = null;
-            blocked(player, session, "Transformation failed. The original skin is restored and infection movement is disabled.");
+            blocked(player, session, "Transformation failed. The original skin is restored and owned infection movement and scale modifiers are removed.");
         } else {
             session.stage = InfectionStage.NORMAL;
             session.state = "RECOVERY_REQUIRED";
@@ -295,7 +295,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         if (session != null && session.appliedValue != null && ownsTexture(player, session)) {
             if (deferAppearance || player.isDead()) {
                 session.state = "RESTORE_PENDING_RESPAWN";
-                session.detail = "Infection ended on death. Movement restrictions released; original skin restoration is deferred until respawn.";
+                session.detail = "Infection ended on death. Movement and scale cleanup requested; original skin restoration is deferred until respawn.";
                 if (notify) say(player, session.detail);
                 return;
             }
@@ -307,7 +307,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             }
             catch (RuntimeException error) {
                 session.state = "RECOVERY_REQUIRED";
-                session.detail = "No infection stage is active. Appearance restoration failed; movement restrictions have been released or queued for cleanup. Use /infect normal or reconnect.";
+                session.detail = "No infection stage is active. Appearance restoration failed; movement and scale modifiers have been removed or queued for cleanup. Use /infect normal or reconnect.";
                 if (notify) say(player, session.detail);
                 getLogger().warning("Restoration for " + player.getUniqueId() + ": " + error.getClass().getSimpleName());
                 return;
@@ -320,14 +320,14 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         if (!movementReleased) {
             if (session == null) { session = new Session(); sessions.put(player.getUniqueId(), session); }
             session.state = "RECOVERY_REQUIRED";
-            session.detail = "No infection stage is active. Sprint policy released; walking-modifier cleanup is pending and will be retried.";
+            session.detail = "No infection stage is active. Sprint policy released; movement/scale modifier cleanup is pending and will be retried.";
             if (notify) say(player, session.detail);
             return;
         }
         sessions.remove(player.getUniqueId());
-        if (notify) say(player, external ? "Another plugin changed your skin. Infection movement was removed without overwriting that texture."
-                : restored ? "Your original appearance and movement settings have been restored! Your stage is NORMAL."
-                : "Your stage is NORMAL. Pending work is cancelled and infection movement modifiers are removed.");
+        if (notify) say(player, external ? "Another plugin changed your skin. Infection movement and scale modifiers were removed without overwriting that texture."
+                : restored ? "Your original appearance, movement and scale settings have been restored! Your stage is NORMAL."
+                : "Your stage is NORMAL. Pending work is cancelled and owned infection movement and scale modifiers are removed.");
     }
 
     private boolean ownsTexture(Player player, Session session) {
@@ -384,7 +384,10 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
                     ? "SIGNED_JAVA_PROFILE_CONFIRMED; client rendering UNVERIFIED" : "not active (preview, normal, or recovery)"));
             say(sender, "Infection movement: " + (movement.isActive(player.getUniqueId()) ? "ACTIVE; " + movementDescription(session.stage)
                     : movement.cleanupPending(player.getUniqueId()) ? "CLEANUP_PENDING; sprint policy released" : "INACTIVE"));
-            say(sender, "Stage 2 size: UNIMPLEMENTED; exact 1.5 x 3 dimensions unsupported. Scale is unchanged.");
+            var scale = player.getAttribute(org.bukkit.attribute.Attribute.SCALE);
+            say(sender, scale == null ? "Actual SCALE attribute: UNAVAILABLE."
+                    : String.format(Locale.ROOT, "Actual SCALE attribute: %.6f; Stage 2 adds a 5/3 multiplier; foreign scale modifiers remain effective.", scale.getValue()));
+            say(sender, "Stage 2 native standing size at baseline scale 1: approximately 1.0 x 3.0 blocks. Exact 1.5-block width is not implemented.");
             var box = player.getBoundingBox();
             say(sender, String.format(Locale.ROOT, "Current server bounding box: %.3f x %.3f x %.3f blocks (width x height x depth); pose=%s.", box.getWidthX(), box.getHeight(), box.getWidthZ(), player.getPose()));
             if (session != null) say(sender, session.detail);
@@ -405,7 +408,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             return true;
         } catch (RuntimeException error) {
             if (movementWarnings.add(player.getUniqueId())) {
-                getLogger().warning("Walking-modifier cleanup is pending for " + player.getUniqueId() + ": " + error.getClass().getSimpleName());
+                getLogger().warning("Movement/scale modifier cleanup is pending for " + player.getUniqueId() + ": " + error.getClass().getSimpleName());
             }
             return false;
         }
@@ -427,10 +430,10 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             Player player = Bukkit.getPlayer(failure.player());
             if (session != null && session.stage != InfectionStage.NORMAL && player != null) {
                 endStage(player, false);
-                say(player, "Infection ended because movement enforcement failed. Check /infect status.");
+                say(player, "Infection ended because movement or scale enforcement failed. Check /infect status.");
             }
             if (movementWarnings.add(failure.player())) {
-                getLogger().warning("Infection movement error for " + failure.player() + ": " + failure.error().getClass().getSimpleName());
+                getLogger().warning("Infection movement/scale error for " + failure.player() + ": " + failure.error().getClass().getSimpleName());
             }
         }
     }
@@ -461,7 +464,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         stopping = true;
         if (worker != null) worker.shutdownNow();
         for (var failure : movement.deactivateAll()) {
-            getLogger().warning("Movement cleanup on disable failed for " + failure.player() + "; the transient modifier is not saved. Reconnect if needed.");
+            getLogger().warning("Movement/scale cleanup on disable failed for " + failure.player() + "; the transient modifier is not saved. Reconnect if needed.");
         }
         for (Player player : Bukkit.getOnlinePlayers()) {
             releaseMovement(player);

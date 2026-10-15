@@ -1,33 +1,46 @@
-# Stage 2 size investigation — Purpur 26.2
+# Stage 2 native scaling — Purpur 26.2 — 0.4.1
 
-The target is exactly 1.5 blocks wide and 3 blocks tall, for both rendered appearance and collision/hitbox behavior.
-**This build does not achieve it and does not change player size.** This limitation does not block supported Stage 2 skin/movement.
+The approved workaround uses uniform **5/3 (approximately 1.666667)** entity scale. A standard standing player
+at baseline scale 1 is expected to be approximately **1.0 block wide and 3.0 blocks tall**. Minecraft's native SCALE
+attribute handles model and collision dimensions together. The plugin never edits a returned bounding box, creates
+fake entities, sends custom resizing packets or uses NMS, Blockbench or custom models. Rendering/collisions still require
+real Minecraft client testing; automated attribute readback does not prove a rendered model.
 
-Checked the versioned Paper 26.2 sources and Purpur's `ver/26.2` API patches, rather than the moving latest Javadoc:
+## API and ownership
 
-- [Attribute.java](https://github.com/PaperMC/Paper/blob/ver/26.2/paper-api/src/main/java/org/bukkit/attribute/Attribute.java):
-  `SCALE` is relative entity scale. No independent width/height attributes. `STEP_HEIGHT` controls stepping, not body height.
-- [Entity.java](https://github.com/PaperMC/Paper/blob/ver/26.2/paper-api/src/main/java/org/bukkit/entity/Entity.java):
-  public `getWidth`, `getHeight`, `getBoundingBox` report dimensions; there are no corresponding independent body size setters.
-  `wouldCollideUsing` is a collision query, not a dimension mutation.
-- [Purpur Entity patch](https://github.com/PurpurMC/Purpur/blob/ver/26.2/purpur-api/paper-patches/files/src/main/java/org/bukkit/entity/Entity.java.patch)
-  and [Player patch](https://github.com/PurpurMC/Purpur/blob/ver/26.2/purpur-api/paper-patches/files/src/main/java/org/bukkit/entity/Player.java.patch)
-  do not add independent width/height setters.
+- [Paper 26.2 Attribute.SCALE](https://github.com/PaperMC/Paper/blob/ver/26.2/paper-api/src/main/java/org/bukkit/attribute/Attribute.java)
+  exposes relative entity scale. [AttributeInstance](https://jd.papermc.io/paper/26.2/org/bukkit/attribute/AttributeInstance.html)
+  supports transient modifiers and keyed lookup/removal.
+- The plugin owns only `infectedmorph:stage2_scale`: operation `MULTIPLY_SCALAR_1`, amount `5.0 / 3.0 - 1.0`.
+  Native effective scale is multiplied by 5/3. Base values, foreign additive/multiplicative modifiers and their later updates
+  remain intact. Repeated enforcement is idempotent; restoring removes only this key instead of overwriting a saved base.
+- Scale setup and signed texture/movement activation form one transaction. Partial failure rolls back all three.
+  Stage 2 is not reported active if scale application/readback fails. Extreme initial scales that clamp the expected product
+  are rejected and rolled back. Subsequent foreign changes remain subject to Minecraft's native scale limits.
+- Stage 1 adds no scale effect and restores the baseline by removing the owned Stage 2 modifier. NORMAL does the same.
+  Death, respawn, quit, plugin disable, join/startup stale cleanup and interrupted transformations share this lifecycle.
+  Scale and speed removal are attempted independently; either failure retains an inactive entry for cleanup retries.
+  Both modifiers are transient and not saved in player NBT.
 
-For a nominal standing player (0.6 wide × 1.8 tall):
+## Expected dimensions and remaining width limitation
 
-| Uniform scale | Width | Height |
-| --- | --- | --- |
-| 1.0 | 0.6 | 1.8 |
-| 1.5 | 0.9 | 2.7 |
-| 5/3 | 1.0 | 3.0 |
-| 2.5 | 1.5 | 4.5 |
+| Baseline effective scale without InfectedMorph | Stage 2 effective scale | Nominal standing width | Nominal standing height |
+| --- | --- | --- | --- |
+| 1.0 | 5/3 | 1.0 | 3.0 |
+| 1.2 | 2.0 | 1.2 | 3.6 |
 
-The requested width needs 2.5× while height needs 5/3×; one scalar cannot satisfy both. Pose, crouching, swimming
-and foreign scale modifiers further change the actual box. `/infect status` therefore prints the server's current
-bounding box and pose and explicitly marks exact Stage 2 size UNIMPLEMENTED. Other plugins' scale changes remain intact.
+These assume a standard standing 0.6 × 1.8 player and no native scale clamping. Different poses and other plugins'
+scale changes produce different dimensions. Scale remains active in air/water/flight; the ground movement modifier
+is suspended there separately. No teleport or automatic clearance correction is performed when growing near obstacles.
+Choose open space and test native collision, eye height, low ceilings, doorways, crouching and hit detection locally.
 
-Mutating a returned bounding-box object does not safely resize both a networked vanilla player and its collision model.
-NMS dimension overrides would be version-specific and risk desynchronizing movement, reach, eye height, poses and observers.
-Visual-only fake entities would not prove collision equivalence. Neither approach is included. A future supported solution
-must verify both rendered dimensions and collisions/hits from real Java and Bedrock clients; models alone would not prove that.
+**Exactly 1.5-block width is still NOT implemented.** A uniform factor 5/3 produces width 1.0, whereas width 1.5 needs
+factor 2.5 and would produce height 4.5. The supported API has no independent player width/height setters.
+[Entity.java](https://github.com/PaperMC/Paper/blob/ver/26.2/paper-api/src/main/java/org/bukkit/entity/Entity.java),
+[Purpur Entity patch](https://github.com/PurpurMC/Purpur/blob/ver/26.2/purpur-api/paper-patches/files/src/main/java/org/bukkit/entity/Entity.java.patch)
+and [Player patch](https://github.com/PurpurMC/Purpur/blob/ver/26.2/purpur-api/paper-patches/files/src/main/java/org/bukkit/entity/Player.java.patch)
+were checked for this boundary. No non-uniform or fragile NMS override is attempted.
+
+`/infect status` prints the actual effective SCALE, current server bounding box and pose, plus the explicit width limitation.
+A typical default player is 0.6 × 1.8 again in Stage 1/NORMAL; foreign scale settings are restored instead when present.
+Bedrock transformations remain blocked and native Java-to-Bedrock size/skin visibility is unverified.

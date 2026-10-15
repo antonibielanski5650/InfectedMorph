@@ -15,6 +15,8 @@ class Stage2MovementTest {
     static final class Subject implements MovementPort {
         boolean sprinting, ground = true, alive = true, fail;
         double base = .1;
+        double scaleBase = 1, foreignScale = 1, ownedScale = 1;
+        boolean failScale, rejectScaleRemoval, rejectSpeedRemoval;
         final Map<String, Double> modifiers = new HashMap<>(Map.of("foreign", .25));
         public boolean aliveAndOnline() { return alive; }
         public boolean ordinaryGroundWalking() { return ground; }
@@ -25,7 +27,19 @@ class Stage2MovementTest {
             modifiers.put("owned", amount);
             if (fail) throw new IllegalStateException("Simulated movement API failure");
         }
-        public void removeOwnedModifier() { modifiers.remove("owned"); }
+        public void removeOwnedModifier() {
+            if (rejectSpeedRemoval) throw new IllegalStateException("Simulated movement cleanup failure");
+            modifiers.remove("owned");
+        }
+        public void applyStage2Scale() {
+            ownedScale = 5.0 / 3;
+            if (failScale) throw new IllegalStateException("Simulated partial scale failure");
+        }
+        public void removeOwnedScale() {
+            if (rejectScaleRemoval) throw new IllegalStateException("Simulated scale cleanup failure");
+            ownedScale = 1;
+        }
+        double scale() { return scaleBase * foreignScale * ownedScale; }
         double speed() { return WalkingSpeed.estimateBlocksPerSecond(unrestrictedGroundSpeed() * (1 + modifiers.getOrDefault("owned", 0.0))); }
     }
 

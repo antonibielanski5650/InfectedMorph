@@ -10,12 +10,21 @@ public final class BukkitMovementPort implements MovementPort {
     private static final NamespacedKey KEY = new NamespacedKey("infectedmorph", "stage1_walking");
     private final Player player;
     private final java.util.function.Supplier<AttributeInstance> attributes;
+    private final BukkitStage2Scale scale;
 
-    public BukkitMovementPort(Player player) { this(player, () -> player.getAttribute(Attribute.MOVEMENT_SPEED)); }
+    public BukkitMovementPort(Player player) {
+        this(player, () -> player.getAttribute(Attribute.MOVEMENT_SPEED), () -> player.getAttribute(Attribute.SCALE));
+    }
 
     BukkitMovementPort(Player player, java.util.function.Supplier<AttributeInstance> attributes) {
+        this(player, attributes, () -> null);
+    }
+
+    BukkitMovementPort(Player player, java.util.function.Supplier<AttributeInstance> attributes,
+                       java.util.function.Supplier<AttributeInstance> scaleAttributes) {
         this.player = player;
         this.attributes = attributes;
+        this.scale = new BukkitStage2Scale(scaleAttributes);
     }
 
     private AttributeInstance attribute() {
@@ -46,6 +55,9 @@ public final class BukkitMovementPort implements MovementPort {
     @Override public void stopSprinting() { if (player.isSprinting()) player.setSprinting(false); }
 
     @Override public boolean isSprinting() { return player.isSprinting(); }
+
+    @Override public void applyStage2Scale() { scale.apply(); }
+    @Override public void removeOwnedScale() { scale.remove(); }
 
     @Override public void putOwnedModifier(double amount) {
         putOwnedModifier(amount, WalkingSpeed.TARGET_ATTRIBUTE);

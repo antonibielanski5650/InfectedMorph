@@ -20,7 +20,7 @@ The following official Geyser sources were inspected for this update:
 `/infect status` now checks the installed public API for `sendSkin` and the event class. Older or missing installations
 produce an explicit unavailable capability message. A positive capability result still states `NOT_IMPLEMENTED`/`UNVERIFIED`.
 
-## Decision for 0.4.0 (Stages 1 and 2)
+## Decision for 0.4.1 (Stages 1 and 2)
 
 A full Bedrock transformation adapter is **not implemented** in this release. The public APIs make a prototype possible,
 but their mere presence cannot establish complete, reliable transformation/restoration for all sessions. In particular,

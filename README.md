@@ -1,4 +1,4 @@
-# InfectedMorph — Stages 1 and 2 (0.4.0-SNAPSHOT)
+# InfectedMorph — Stages 1 and 2 (0.4.1-SNAPSHOT)
 
 Standalone Minecraft plugin for **Purpur 26.2 / Java 25**, Maven, standard Java clients and optional LuckPerms.
 The approved Stage 1 appearance is unchanged. Stage 2 adds a separate, more scratched original-skin variant
@@ -15,7 +15,7 @@ Bedrock transformations remain blocked, and Java-to-Bedrock skin visibility rema
 | --- | --- | --- |
 | `/infect stage1` | `infectedmorph.stage1` (op) | Approved Stage 1 skin; approximately 4 blocks/s walking; sprinting blocked. |
 | `/infect stage2` | `infectedmorph.stage2` (op) | Separate Stage 2 skin; approximately 6 blocks/s walking and 9 blocks/s sprinting. |
-| `/infect normal` | `infectedmorph.normal` (everyone) | Cancel pending work, restore original owned texture, remove only owned movement modifier. |
+| `/infect normal` | `infectedmorph.normal` (everyone) | Cancel pending work, restore original owned texture, remove only owned movement/scale modifiers. |
 | `/infect status` | `infectedmorph.status` (everyone) | Actual stage, preview/applied/recovery state, movement, client diagnostics and current server bounding box; console diagnostics supported. |
 
 Permissions use standard Bukkit `hasPermission`, including LuckPerms:
@@ -25,15 +25,22 @@ lp user <name> permission set infectedmorph.stage1 true
 lp user <name> permission set infectedmorph.stage2 true
 ```
 
-## Stage 2 size limitation
+## Stage 2 native uniform scale
 
-**Exact 1.5-block width AND 3-block height are NOT implemented. Size is left unchanged.**
-The verified 26.2 public API exposes uniform `Attribute.SCALE`, not independent player width/height controls.
-A normal standing player is nominally 0.6 × 1.8 blocks. Scale 1.5 produces 0.9 × 2.7, scale 5/3 produces 1.0 × 3.0,
-and scale 2.5 produces 1.5 × 4.5. None meets the requested pair. Changing a returned bounding box would not resize
-both the rendered player and server collision model. No NMS collision hacks or visual-only fake dimensions are used.
-Scale and other plugins' size modifiers are untouched. Status prints the actual current pose-dependent server bounding box;
-that is not proof of client-rendered dimensions. See [size/API investigation](docs/stage2-size.md).
+Stage 2 adds a **5/3 (1.666667) multiplier** through the supported `Attribute.SCALE` API.
+For a standard standing player with baseline scale 1, the expected native dimensions are approximately **1.0 block wide
+and 3.0 blocks tall**. Minecraft handles the visual model and collision dimensions together; the plugin does not edit
+bounding boxes or use custom entities, NMS, models or packets to fake size. Real-client rendering/collision still needs testing.
+
+**Exact 1.5-block width remains unimplemented.** Uniform scaling cannot produce both 1.5 width and 3.0 height for a standard
+0.6 × 1.8 player. Status displays the actual effective SCALE, current pose-dependent server bounding box and this limitation.
+
+The transient `infectedmorph:stage2_scale` modifier multiplies the current scale, including other plugins' modifiers, by 5/3.
+It never resets the base or foreign modifiers. Baseline 1 produces scale 1.666667; foreign baseline 1.2 produces scale 2.0.
+Returning to Stage 1 or NORMAL removes only our multiplier, exposing the player's current original/foreign scale settings;
+changes made by other plugins during infection survive. Stage 1 adds no size modifier. Repeated transitions do not stack size.
+Scale remains active in every Stage 2 pose, including in air and water, while movement rules remain unchanged.
+See [size/API implementation and limits](docs/stage2-size.md).
 
 ## Appearance and configuration
 
@@ -87,19 +94,19 @@ Allow about ±0.15 blocks/s in repeated stable level-ground trials after a run-i
 The retained transient key `infectedmorph:stage1_walking` is shared by both stages for compatible cleanup. Only that modifier
 is replaced/removed. Foreign modifiers and current base values remain installed; their ground-speed effects are compensated
 while enforcing the target, and become effective again when the owned modifier is removed. No `setWalkSpeed`, velocity clamp,
-fly speed, swim-speed attribute or scale changes. The ground modifier is suspended in air, water, flight, gliding and vehicles.
+fly speed or swim-speed attribute changes. Native SCALE is changed only for Stage 2. The ground modifier is suspended in air, water, flight, gliding and vehicles.
 Stage 1 alone blocks the common sprint flag, including sprint-based swim/flight boosts, as in the prior version.
 Ice, slopes, sneaking, jumping, analog input, collisions, knockback and low TPS can change actual speed.
 
 A transition first restores NORMAL and retains the original profile snapshot before generating the next stage.
 During publication, movement is unrestricted and stage is NORMAL. Success commits only after signed appearance verification
-AND movement activation. Failure leaves NORMAL with original appearance restored, or explicit `RECOVERY_REQUIRED` if recovery
+AND movement/scale activation. Failure leaves NORMAL with original appearance restored, or explicit `RECOVERY_REQUIRED` if recovery
 fails. The previous infection is not automatically reactivated after failure. Repeated transitions cannot accumulate wounds,
 replace the original snapshot with an infected skin, or stack owned modifiers.
 
 Cancellation, online/alive checks, session identity, texture ownership and permissions are checked before application.
-`/infect normal`, death, logout and disable cancel work and clean movement independently of appearance restoration. Death
-restores the original texture one server task after respawn. Cleanup failures retain retries and release sprint policy.
+`/infect normal`, death, logout and disable cancel work and clean movement and scale independently of appearance restoration. Death
+restores the original texture one server task after respawn. Cleanup attempts both attribute removals independently; failures retain retries and release sprint policy.
 External skin replacements end infection without overwriting that plugin's texture. Reconnect begins NORMAL. Transient
 modifiers are not saved in player NBT. The signed texture may temporarily remove a cape; NORMAL restores the original property.
 
@@ -111,14 +118,12 @@ Use Java 25 and Maven 3.9.x:
 mvn package
 ```
 
-Output: `target/InfectedMorph-0.4.0-SNAPSHOT.jar`. Purpur API is pinned to **26.2.build.2621-stable**, scope `provided`;
+Output: `target/InfectedMorph-0.4.1-SNAPSHOT.jar`. Purpur API is pinned to **26.2.build.2621-stable**, scope `provided`;
 Gson is bundled and relocated. The official Purpur repository and Maven Central must be reachable.
 [GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) runs the full Java 25 build and publishes
 `InfectedMorph-test-jar`, `InfectedMorph-stage1-previews` and `InfectedMorph-stage2-previews` ZIP artifacts.
-[Download 0.4.0 JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909/artifacts/11981491853) ·
-[Stage 2 preview ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909/artifacts/11981276966).
-The [full Java 25 Maven build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38751357909) passed all **69 tests**.
-Review [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1); nothing is merged.
+Use the new 0.4.1 JAR linked in [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1).
+The full Java 25 Maven workflow publishes downloadable JAR and unchanged approved skin preview artifacts.
 [Verification and current build evidence](docs/verification.md) distinguishes automated checks from client testing.
 
 Follow [Windows CMD setup and local Minecraft test steps](docs/local-testing.md) for secure environment-key configuration,

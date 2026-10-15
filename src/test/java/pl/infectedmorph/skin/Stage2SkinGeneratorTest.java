@@ -10,13 +10,17 @@ import static org.junit.jupiter.api.Assertions.*;
 class Stage2SkinGeneratorTest {
     private final Stage2SkinGenerator generator = new Stage2SkinGenerator();
 
-    @Test void approvedStage1PreviewPixelsRemainExactlyUnchanged() throws Exception {
+    @Test void approvedStage1AndStage2PreviewPixelsRemainExactlyUnchanged() throws Exception {
         var id = UUID.fromString("e1e0fa60-0e40-4ec3-874b-123456789abc");
         for (SkinModel model : SkinModel.values()) for (InfectionIntensity intensity : InfectionIntensity.values()) {
             String name = (model == SkinModel.WIDE ? "classic" : "slim") + "-" + intensity.configValue() + ".png";
             var approved = javax.imageio.ImageIO.read(java.nio.file.Path.of("docs/previews", name).toFile());
             var generated = new Stage1SkinGenerator().generate(Stage1PreviewSamples.sample(model), model, id, intensity, EyeTreatment.automatic());
             assertArrayEquals(pixels(approved), pixels(generated), "Approved Stage 1 regression: " + name);
+            String secondName = name.replace(".png", "-stage2.png");
+            var approvedSecond = javax.imageio.ImageIO.read(java.nio.file.Path.of("docs/stage2-previews", secondName).toFile());
+            var generatedSecond = generator.generate(Stage1PreviewSamples.sample(model), model, id, intensity, EyeTreatment.automatic());
+            assertArrayEquals(pixels(approvedSecond), pixels(generatedSecond), "Approved Stage 2 regression: " + secondName);
         }
     }
 

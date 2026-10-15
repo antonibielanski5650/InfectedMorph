@@ -13,7 +13,8 @@ stage2:
   enabled: true
   # Uses the shared stage1 infection-intensity and eye settings, with additional longer cuts.
   # Walking target: 6 blocks/s. Sprint target: 9 blocks/s (normal hunger rules apply).
-  # Size stays unchanged: uniform SCALE cannot provide exact 1.5 x 3 dimensions.
+  # Native SCALE multiplier: 5/3. Standard standing player: approximately 1.0 wide x 3.0 tall.
+  # Foreign scale changes remain effective; exact 1.5-block width is not implemented.
 java-display:
   # Java profile application is enabled when a valid API key is present.
   # Set false for explicit preview-only mode. Real client rendering is unverified.

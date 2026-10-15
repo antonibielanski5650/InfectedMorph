@@ -64,6 +64,9 @@ public final class Stage1Movement {
     }
 
     private void enforce(Entry entry) {
+        // Size persists in every pose/movement mode; only the ground-speed modifier is suspended in air/water.
+        if (entry.stage == InfectionStage.STAGE2) entry.port.applyStage2Scale();
+        else entry.port.removeOwnedScale();
         if (entry.stage == InfectionStage.STAGE1) entry.port.stopSprinting();
         double target = entry.stage == InfectionStage.STAGE1 ? 4 : entry.port.isSprinting() ? 9 : 6;
         if (entry.port.ordinaryGroundWalking()) entry.port.putOwnedModifier(
@@ -75,7 +78,12 @@ public final class Stage1Movement {
         Entry entry = entries.get(id);
         if (entry == null) return;
         entry.active = false; // Release sprint policy even if modifier cleanup throws.
-        entry.port.removeOwnedModifier();
+        RuntimeException failure = null;
+        try { entry.port.removeOwnedModifier(); } catch (RuntimeException error) { failure = error; }
+        try { entry.port.removeOwnedScale(); } catch (RuntimeException error) {
+            if (failure == null) failure = error; else failure.addSuppressed(error);
+        }
+        if (failure != null) throw failure; // Keep the inactive entry so either cleanup can be retried.
         entries.remove(id);
     }
 
