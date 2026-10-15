@@ -1,0 +1,24 @@
+name: InfectedMorph
+version: '${project.version}'
+main: pl.infectedmorph.InfectedMorphPlugin
+api-version: '26.2'
+description: Stage 1 and Stage 2 Java infection skins and movement with explicit compatibility diagnostics.
+authors: [antonibielanski5650]
+softdepend: [floodgate, Geyser-Spigot]
+commands:
+  infect:
+    description: Stage 1 and Stage 2 infection and appearance diagnostics.
+    usage: /infect <stage1|stage2|normal|status>
+permissions:
+  infectedmorph.stage1:
+    description: Allows players to generate Stage 1 for themselves.
+    default: op
+  infectedmorph.stage2:
+    description: Allows players to generate and activate Stage 2 for themselves.
+    default: op
+  infectedmorph.normal:
+    description: Allows players to restore their original appearance.
+    default: true
+  infectedmorph.status:
+    description: Allows players to view diagnostics.
+    default: true

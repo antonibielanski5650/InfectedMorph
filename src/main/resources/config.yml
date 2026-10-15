@@ -1,0 +1,27 @@
+# No valid API key means preview-only: no active stage or movement restrictions.
+stage1:
+  enabled: true
+  # low: subtle; medium: clearly visible; high: stronger cinematic marks.
+  infection-intensity: medium
+  eyes:
+    # auto searches for paired contrasting features and skips ambiguous faces.
+    # custom uses only the pixels below; off leaves eye colors unchanged.
+    mode: auto
+    # Local x,y coordinates in the 8x8 front face (0..7), used only in custom mode.
+    pixels: ['1,4', '2,4', '5,4', '6,4']
+stage2:
+  enabled: true
+  # Uses the shared stage1 infection-intensity and eye settings, with additional longer cuts.
+  # Walking target: 6 blocks/s. Sprint target: 9 blocks/s (normal hunger rules apply).
+  # Native SCALE multiplier: 5/3. Standard standing player: approximately 1.0 wide x 3.0 tall.
+  # Foreign scale changes remain effective; exact 1.5-block width is not implemented.
+java-display:
+  # Java profile application is enabled when a valid API key is present.
+  # Set false for explicit preview-only mode. Real client rendering is unverified.
+  enabled: true
+  # Set a server environment variable; never put a key in this file or Git.
+  mineskin-api-key-env: INFECTEDMORPH_MINESKIN_API_KEY
+  # MineSkin uploads the generated PNG as unlisted (not private).
+  request-timeout-seconds: 90
+  # Single serialized publishing worker; no automatic retry after HTTP 429.
+  minimum-publish-interval-seconds: 60
