@@ -20,11 +20,11 @@ The following official Geyser sources were inspected for this update:
 `/infect status` now checks the installed public API for `sendSkin` and the event class. Older or missing installations
 produce an explicit unavailable capability message. A positive capability result still states `NOT_IMPLEMENTED`/`UNVERIFIED`.
 
-## Decision for 0.3.0
+## Decision for 0.4.0 (Stages 1 and 2)
 
 A full Bedrock transformation adapter is **not implemented** in this release. The public APIs make a prototype possible,
 but their mere presence cannot establish complete, reliable transformation/restoration for all sessions. In particular,
-`sendSkin` returning normally can mean a silent no-op; it cannot be used as proof to activate Stage 1 movement.
+`sendSkin` returning normally can mean a silent no-op; it cannot be used as proof to activate Stage 1 or Stage 2 movement.
 The Java profile backend is not treated as a Bedrock backend. Bedrock players remain blocked without movement changes.
 
 A testable full adapter needs all of the following together before activation can be trusted:

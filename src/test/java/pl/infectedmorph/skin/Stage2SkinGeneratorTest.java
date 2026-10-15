@@ -10,6 +10,16 @@ import static org.junit.jupiter.api.Assertions.*;
 class Stage2SkinGeneratorTest {
     private final Stage2SkinGenerator generator = new Stage2SkinGenerator();
 
+    @Test void approvedStage1PreviewPixelsRemainExactlyUnchanged() throws Exception {
+        var id = UUID.fromString("e1e0fa60-0e40-4ec3-874b-123456789abc");
+        for (SkinModel model : SkinModel.values()) for (InfectionIntensity intensity : InfectionIntensity.values()) {
+            String name = (model == SkinModel.WIDE ? "classic" : "slim") + "-" + intensity.configValue() + ".png";
+            var approved = javax.imageio.ImageIO.read(java.nio.file.Path.of("docs/previews", name).toFile());
+            var generated = new Stage1SkinGenerator().generate(Stage1PreviewSamples.sample(model), model, id, intensity, EyeTreatment.automatic());
+            assertArrayEquals(pixels(approved), pixels(generated), "Approved Stage 1 regression: " + name);
+        }
+    }
+
     static int[] pixels(BufferedImage image) { return image.getRGB(0, 0, 64, 64, null, 0, 64); }
     static int scratchPixels(BufferedImage image) {
         int count = 0;
@@ -29,6 +39,9 @@ class Stage2SkinGeneratorTest {
             var second = generator.generate(original, model, id, intensity, EyeTreatment.automatic());
             assertTrue(scratchPixels(second) > scratchPixels(first) * 1.1,
                     model + " " + intensity + " must add visible red-cut pixels, rather than just bruise tint");
+            int faceChanges = 0;
+            for (int y = 8; y < 16; y++) for (int x = 8; x < 16; x++) if (first.getRGB(x,y) != second.getRGB(x,y)) faceChanges++;
+            assertTrue(faceChanges > 0, "Stage 2 must add face cuts for every tested player, not only favorable random seeds");
         }
     }
 
@@ -53,8 +66,17 @@ class Stage2SkinGeneratorTest {
         for (int y = 0; y < 64; y++) for (int x = 0; x < 64; x++) {
             int px = x, py = y, source = original.getRGB(x, y), result = output.getRGB(x, y);
             assertEquals(source >>> 24, result >>> 24, "Alpha at " + x + "," + y);
-            if ((source >>> 24) == 0 || SkinUv.surfaces(model).stream().noneMatch(r -> r.contains(px,py))) assertEquals(source, result);
+            if ((source >>> 24) == 0 || !allowed(model,px,py)) assertEquals(source, result);
         }
+    }
+
+    private static boolean allowed(SkinModel model, int x, int y) {
+        int armStrip = model == SkinModel.SLIM ? 14 : 16;
+        int[][] strips = {{8,8,8,8},{40,8,8,8},{16,20,24,12},{16,36,24,12},
+                {40,20,armStrip,12},{40,36,armStrip,12},{32,52,armStrip,12},{48,52,armStrip,12},
+                {0,20,16,12},{0,36,16,12},{16,52,16,12},{0,52,16,12}};
+        for (int[] r : strips) if (x >= r[0] && x < r[0]+r[2] && y >= r[1] && y < r[1]+r[3]) return true;
+        return false;
     }
 
     @ParameterizedTest @EnumSource(SkinModel.class)

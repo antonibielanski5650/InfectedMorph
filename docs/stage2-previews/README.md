@@ -6,12 +6,12 @@ plus a nearest-neighbor comparison with front/back views and UV maps. Raw textur
 
 | Model / intensity | Comparison | Stage 2 texture | Stage 1 / Stage 2 scratch pixels |
 | --- | --- | --- | --- |
-| Classic low | [Sheet](classic-low-comparison.png) | [PNG](classic-low-stage2.png) | 34 / 192 |
-| Classic medium | [Sheet](classic-medium-comparison.png) | [PNG](classic-medium-stage2.png) | 80 / 294 |
-| Classic high | [Sheet](classic-high-comparison.png) | [PNG](classic-high-stage2.png) | 165 / 377 |
-| Slim low | [Sheet](slim-low-comparison.png) | [PNG](slim-low-stage2.png) | 28 / 191 |
-| Slim medium | [Sheet](slim-medium-comparison.png) | [PNG](slim-medium-stage2.png) | 82 / 293 |
-| Slim high | [Sheet](slim-high-comparison.png) | [PNG](slim-high-stage2.png) | 177 / 368 |
+| Classic low | [Sheet](classic-low-comparison.png) | [PNG](classic-low-stage2.png) | 34 / 196 |
+| Classic medium | [Sheet](classic-medium-comparison.png) | [PNG](classic-medium-stage2.png) | 80 / 297 |
+| Classic high | [Sheet](classic-high-comparison.png) | [PNG](classic-high-stage2.png) | 165 / 379 |
+| Slim low | [Sheet](slim-low-comparison.png) | [PNG](slim-low-stage2.png) | 28 / 196 |
+| Slim medium | [Sheet](slim-medium-comparison.png) | [PNG](slim-medium-stage2.png) | 82 / 297 |
+| Slim high | [Sheet](slim-high-comparison.png) | [PNG](slim-high-stage2.png) | 177 / 371 |
 
 Scratch counts use a fixed red-dominance threshold on these neutral-color fixtures. They measure visible cut coverage,
 not simply any pixel change or total bruising. Arbitrary original red clothing cannot be semantically classified by that metric.

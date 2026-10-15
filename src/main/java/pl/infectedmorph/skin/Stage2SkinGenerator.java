@@ -22,9 +22,10 @@ public final class Stage2SkinGenerator {
             Set<Integer> cuts = new java.util.LinkedHashSet<>();
             int count = 2 + intensity.ordinal();
             for (int line = 0; line < count; line++) {
-                int x = random.nextInt(region.width());
-                int start = region.part() == SkinUv.Part.FACE ? 3 : 1 + random.nextInt(3);
-                int direction = random.nextBoolean() ? 1 : -1;
+                boolean face = region.part() == SkinUv.Part.FACE;
+                int x = face ? (line % 2 == 0 ? 0 : 7) : random.nextInt(region.width());
+                int start = face ? 3 : 1 + random.nextInt(3);
+                int direction = face ? (x == 0 ? 1 : -1) : random.nextBoolean() ? 1 : -1;
                 int length = 5 + intensity.ordinal();
                 for (int step = 0; step < length; step++) {
                     int px = x + direction * (step / 3), py = start + step;
