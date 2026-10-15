@@ -5,22 +5,30 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import pl.infectedmorph.domain.InfectionStage;
 
-/** Main-thread lifecycle with retained cleanup entries if a server API operation fails. */
+/** Shared main-thread Stage 1/2 lifecycle; retained class name keeps the Stage 1 integration compatible. */
 public final class Stage1Movement {
     private static final class Entry {
         final MovementPort port;
+        final InfectionStage stage;
         boolean active;
-        Entry(MovementPort port) { this.port = port; }
+        Entry(MovementPort port) { this(port, InfectionStage.STAGE1); }
+        Entry(MovementPort port, InfectionStage stage) { this.port = port; this.stage = stage; }
     }
     public record Failure(UUID player, RuntimeException error) {}
     private final Map<UUID, Entry> entries = new HashMap<>();
 
     public void activate(UUID id, MovementPort port) {
-        if (isActive(id)) throw new IllegalStateException("Stage 1 movement is already active.");
+        activate(id, port, InfectionStage.STAGE1);
+    }
+
+    public void activate(UUID id, MovementPort port, InfectionStage stage) {
+        if (stage == null || stage == InfectionStage.NORMAL) throw new IllegalArgumentException("An infected movement stage is required.");
+        if (isActive(id)) throw new IllegalStateException("Infection movement is already active.");
         deactivate(id);
         WalkingSpeed.modifierAmount(port.unrestrictedGroundSpeed()); // Validate even if the player is currently airborne.
-        Entry entry = new Entry(port);
+        Entry entry = new Entry(port, stage);
         entries.put(id, entry);
         try {
             if (!port.aliveAndOnline()) throw new IllegalStateException("The player is no longer alive and online.");
@@ -38,8 +46,12 @@ public final class Stage1Movement {
     }
 
     /** True means the event adapter must cancel this sprint start, regardless of input device. */
+    public boolean blocksSprinting(UUID id) {
+        return isActive(id) && entries.get(id).stage == InfectionStage.STAGE1;
+    }
+
     public boolean handleSprintAttempt(UUID id, boolean starting) {
-        if (!starting || !isActive(id)) return false;
+        if (!starting || !blocksSprinting(id)) return false;
         Entry entry = entries.get(id);
         entry.port.stopSprinting();
         // Reject client prediction too: re-add our ground modifier to dirty the attribute and resend it.
@@ -52,8 +64,10 @@ public final class Stage1Movement {
     }
 
     private void enforce(Entry entry) {
-        entry.port.stopSprinting();
-        if (entry.port.ordinaryGroundWalking()) entry.port.putOwnedModifier(WalkingSpeed.modifierAmount(entry.port.unrestrictedGroundSpeed()));
+        if (entry.stage == InfectionStage.STAGE1) entry.port.stopSprinting();
+        double target = entry.stage == InfectionStage.STAGE1 ? 4 : entry.port.isSprinting() ? 9 : 6;
+        if (entry.port.ordinaryGroundWalking()) entry.port.putOwnedModifier(
+                WalkingSpeed.modifierAmount(entry.port.unrestrictedGroundSpeed(), target), WalkingSpeed.attributeFor(target));
         else entry.port.removeOwnedModifier();
     }
 

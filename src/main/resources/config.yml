@@ -9,6 +9,11 @@ stage1:
     mode: auto
     # Local x,y coordinates in the 8x8 front face (0..7), used only in custom mode.
     pixels: ['1,4', '2,4', '5,4', '6,4']
+stage2:
+  enabled: true
+  # Uses the shared stage1 infection-intensity and eye settings, with additional longer cuts.
+  # Walking target: 6 blocks/s. Sprint target: 9 blocks/s (normal hunger rules apply).
+  # Size stays unchanged: uniform SCALE cannot provide exact 1.5 x 3 dimensions.
 java-display:
   # Java profile application is enabled when a valid API key is present.
   # Set false for explicit preview-only mode. Real client rendering is unverified.

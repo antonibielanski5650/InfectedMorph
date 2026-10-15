@@ -1,62 +1,41 @@
-# Verification - October 15, 2026 - 0.3.0-SNAPSHOT
+# Verification — October 15, 2026 — 0.4.0-SNAPSHOT
 
-## Implemented scope
+Stage 2 adds stronger deterministic original-skin generation, 6 blocks/s walking, 9 blocks/s sprinting, permitted sprint
+inputs, and safe Stage 1 ↔ Stage 2 transitions via NORMAL. Stage 1's approved generator/UV/eye/intensity implementation
+and committed Stage 1 preview images are unchanged. Exact 1.5 × 3 dimensions are unsupported; size is unchanged.
+See [size investigation](stage2-size.md) for versioned official sources and [local testing](local-testing.md) for runtime checks.
 
-Existing draft PR #1 / `codex/stage1-foundation` now includes transactional appearance/movement activation,
-4 blocks/s nominal ground walking, sprint prevention, lifecycle cleanup and verified signed-profile readback.
-Java display is key-gated and enabled in new configs; missing keys or explicit disable still produce preview-only.
-The approved skin generator and committed appearance samples are unchanged from 0.2.0.
+## Build and automated checks
 
-## Automated checks
+Local Java 25.0.4.1 core compilation/tests: **59 passed**, 0 failures/skips (before Paper/Mockito adapter checks).
+The local full `mvn package` was attempted with Java 25 / Maven 3.9.11 and trusted proxy CA, but the managed network
+returns HTTP 403 for the official Purpur Maven repository. No TLS validation was disabled and no substitute API stubs were used.
+The full Java 25 build against pinned real `purpur-api:26.2.build.2621-stable` is run by GitHub Actions; final evidence
+and downloadable artifacts will be linked here after the run completes.
 
-**Full build: BUILD SUCCESS** on Temurin Java 25.0.4+1, [Actions run 38742938086](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086).
-Source commit: `bbb3c81f9857a7f386f2a1df6a4cc99aaef201d0`. All 21 main source files compiled against the real Purpur API.
-**51 tests passed, 0 failures, 0 errors, 0 skipped**, including Paper/Mockito adapter tests.
+Tests cover the previous Stage 1 behavior plus:
 
-[Download 0.3.0-SNAPSHOT JAR (ZIP)](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086/artifacts/11977610061).
-Artifact ZIP SHA-256: `f3315a201b96f6396b9b3ef411cb087aade3bc56ab488162b9bea98f33907104`.
-The initial remote build found a stale test method reference after renaming the calibration method; it was corrected
-and the full build/test/package workflow passed. No tests were removed or skipped to obtain the passing result.
+- Stage 2 nominal 6 walking / 9 sprinting calibration, including vanilla's 1.3 sprint attribute modifier.
+- Actual Bukkit sprint events allowed in Stage 2, blocked in Stage 1, foreign cancellations retained.
+- Shared transient attribute adapter target readback, preserving foreign/sprint modifiers and never writing base/walk/fly speed or velocity.
+- Stage 1 → Stage 2 → Stage 1 → NORMAL sprint/speed restoration, ground/special-movement transitions, death/logout and disable.
+- Partial Stage 2 activation failure rolls back appearance and owned movement; inactive/preview cannot acquire sprint restrictions.
+- Snapshot retained before restoration; incomplete recovery blocks the next stage; repeated transitions retain the original source.
+- Stage 2 determinism, UUID variation, original and Stage 1 data immutability, preserved alpha/hidden RGB, exact classic/slim UV bounds.
+- More than 10% greater red-cut coverage than Stage 1 at every intensity across 24 UUIDs and both models (144 fixture comparisons).
+- Added marks on every base body side, protected custom eyes/central features/hairline, capped added coverage, and most opaque pixels unchanged.
 
-The 27 previous skin/HTTP cases remain. New tests exercise:
+Generated synthetic samples include all low/medium/high classic/slim Stage 2 textures, fresh Stage 1 references and original textures.
+The classic medium comparison was visually inspected: longer visible cuts on front/back, with recognizable colors/features retained.
+Samples are not real client screenshots. Counts and reproduction are in [sample notes](stage2-previews/README.md).
 
-- Calibration at different unrestricted speeds with foreign speed modifiers retained unchanged.
-- Repeated sprint starts and tick correction; rejected ground starts trigger an attribute resync.
-- Ground/non-ground transitions and recalibration after external speed changes.
-- Death, logout, disable, inactive/preview state, stale-key removal and fresh respawn/rejoin controller state.
-- Partial modifier application, removal failures, released sprint policy and retained cleanup retries.
-- Actual Bukkit sprint events (mocked player), including permission to sprint again after normal and preserving another plugin's cancellation.
-- The actual Bukkit attribute adapter: transient owned modifier, idempotence, preserving foreign modifiers,
-  never changing base/walk speed/fly speed/velocity, and ignoring special movement contexts.
-- Activation ordering and rollback after apply, verify and movement failures, including failed rollback paths.
-- Java profile application on a detached copy, signed readback, original property restoration and retention of unrelated properties.
+## Still requires real server/client testing
 
-The local Java 25 core check passes 43 cases, excluding the Paper/Mockito adapter tests that need the actual API dependency.
-A full local `mvn package` was attempted with Maven 3.9.11 / Java 25.0.4.1 and trusted proxy CA; the cloud proxy still blocks
-`repo.purpurmc.org` with HTTP 403. GitHub Actions runs the complete Java 25 build against the real pinned Purpur API,
-including the Bukkit/Mockito cases. See the current PR checks and artifact links for the final complete result.
-The successful remote build resolves the local compilation limitation. No invented/stub server API is used to claim compatibility.
+- Plugin startup/event ordering on Purpur 26.2, measured 4/6/9 blocks/s at stable 20 TPS, sprint-key/double-tap prediction and hunger rules.
+- MineSkin with a real user's environment key, self F5 and second Java observer refresh, classic/slim rendering, restoration and capes.
+- Stage transitions, cancellation/death/respawn/logout/disable and failure recovery while other skin/movement plugins are installed.
+- Actual current bounding boxes/poses and confirmation that Stage 2 leaves size unchanged; no exact size achievement is claimed.
+- Geyser/floodgate/Bedrock observer behavior. Bedrock player transformations remain safely blocked, not implemented or runtime-verified.
 
-## API/source verification
-
-- Paper 26.2 `AttributeInstance` exposes transient modifiers and keyed removal; the plugin owns only
-  `infectedmorph:stage1_walking` and never resets the attribute's base or foreign modifier collection.
-- Paper 26.2 `PlayerToggleSprintEvent` is cancellable. The plugin cancels starts at HIGHEST and clears sprint state on ticks.
-- Paper 26.2 `CraftPlayer.setPlayerProfile` unregisters/re-registers visible observers and invokes its native self-refresh.
-  Detached-copy application/readback avoids changing the live profile before invoking that API.
-- `setWalkSpeed` would also change the movement attribute base; it is intentionally not used.
-- Geyser exposes `SessionSkinApplyEvent` and public `sendSkin` since 2.8.3; the latter can silently ignore unknown targets.
-  Full Bedrock transformation remains blocked rather than treating an API call as proof of a rendered transformation.
-
-Links and scope are in [local testing](local-testing.md), [Bedrock investigation](bedrock-investigation.md), and README.
-The ground-speed formula is a nominal vanilla mechanics calculation, not an actual in-game benchmark.
-
-## Not runtime-verified
-
-- Purpur plugin startup and actual server event ordering under death/respawn/disconnect and other plugins.
-- Measured 4 blocks/s on a real client; double-tap/sprint-key prediction and observer agreement.
-- MineSkin publishing with the user's key, F5 skin rendering, observer visibility, tab list, capes and restoration.
-- Actual Java/Bedrock client controls and Geyser/floodgate visibility, refresh ordering or persona geometry support.
-
-The complete Windows CMD/local-server checklist documents how to verify these. No production deployment, ChunkVote
-changes, merge into main or Stages 2-5 work has been performed.
+No real Minecraft client was available in this workspace. Automated profile readback is not rendering confirmation.
+No production deployment, ChunkVote changes, custom models, Stages 3–5 implementation or merge into main is performed.

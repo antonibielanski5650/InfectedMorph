@@ -1,14 +1,14 @@
-# Local Stage 1 testing - Java 25 / Purpur 26.2
+# Local Stage 1 and Stage 2 testing - Java 25 / Purpur 26.2
 
 Use a separate local server and test accounts. This plugin has not been tested with a real Minecraft client in this workspace.
-Do not replace your production plugin or world while evaluating it. The approved skin generator is unchanged in 0.3.0.
+Do not replace your production plugin or world while evaluating it. The approved skin generator is unchanged in 0.4.0.
 
 ## 1. Install and configure on Windows CMD
 
-1. Download the **new 0.3.0-SNAPSHOT artifact** from draft PR #1 / its successful Actions run. Extract the ZIP.
+1. Download the **new 0.4.0-SNAPSHOT artifact** from draft PR #1 / its successful Actions run. Extract the ZIP.
    Remove the older InfectedMorph JAR from the local server's `plugins` folder and put the new JAR there.
 2. Start the local Purpur 26.2 server once to create the config, then stop it. Accept the Minecraft EULA yourself.
-   Make sure `java -version` reports Java 25. No client mod or resource pack is needed for Stage 1.
+   Make sure `java -version` reports Java 25. No client mod or resource pack is needed for either stage.
 3. Edit `plugins\InfectedMorph\config.yml`:
 
    ```yaml
@@ -46,6 +46,7 @@ Do not replace your production plugin or world while evaluating it. The approved
 
    ```text
    lp user <name> permission set infectedmorph.stage1 true
+   lp user <name> permission set infectedmorph.stage2 true
    ```
 
    Alternatively use a local operator test account. `normal` and `status` are allowed by default.
@@ -112,3 +113,34 @@ Bedrock transformations remain blocked. With local Geyser-Spigot/floodgate, stat
 must state the limitation without changing movement. Availability of `sendSkin` is diagnosed separately; it is not an adapter.
 See [the API investigation](bedrock-investigation.md). Observe a changed Java player's skin from Bedrock as a separate,
 unverified experiment. Record exact Geyser/floodgate/client/platform versions and results; do not assume Java refresh works there.
+
+
+## 6. Stage 2 and transitions
+
+1. Keep the approved Stage 1 configuration. Optionally add `stage2.enabled: true` (the fallback for older configs is true).
+   Its appearance uses the shared intensity/eye settings. To compare PNGs first, disable Java display and restart.
+   Run `/infect stage2`: expect `PREVIEW_READY`, stage NORMAL, no speed change. Compare `original.png`, `stage1.png`
+   (if previously generated) and `stage2.png` under `plugins\InfectedMorph\previews\<UUID>\`.
+2. Enable/configure MineSkin as above, restart and activate Stage 1. Verify the approved skin, 4 blocks/s and both sprint inputs blocked.
+3. Run `/infect stage2`. The old stage ends and restores NORMAL before generation/publication; speed is unrestricted while waiting.
+   Success must show STAGE2, JAVA_PROFILE_APPLIED, 6 walking / 9 sprinting targets and an explicit unchanged-size limitation.
+   Check F5 and a second Java observer, both classic and slim models. Inspect back/sides and outer layers, and compare the skin
+   with the original: more/longer cuts, retained bruises/dull eyes, recognizable clothing/hair/colors. NORMAL must restore the original.
+4. On the same level stone lane, use full forward input at stable 20 TPS with a 10-block run-in. Time a 60-block walking segment
+   (approximately 10 seconds) and a 90-block sprint segment (approximately 10 seconds). Allow about ±0.15 blocks/s across repeated trials.
+   Use sufficient hunger; normal hunger rules and other plugins' cancellations still apply. Test sprint key and double-tap inputs.
+   Starting/stopping sprint can take one tick to recalibrate. Ice, water, air, jumping, slopes and analog input are outside this measurement.
+5. Switch Stage 2 → Stage 1 while sprinting. After successful Stage 1 activation, sprint must be stopped/blocked and walking returns to 4.
+   Repeat Stage 1 → Stage 2 → Stage 1 → NORMAL several times; verify original skin, base attributes, foreign speed/scale modifiers
+   and ability to sprint return. No owned modifier stacking or cumulative infection should occur.
+6. Cause a Stage 2 publishing failure while transitioning from Stage 1 (invalid key/network failure/cooldown in a local test).
+   The safe fallback is NORMAL, not the old Stage 1: original texture restored, no owned movement modifier or sprint block.
+   No target stage may activate after a failed upload, failed profile readback or movement setup failure. If recovery fails,
+   expect RECOVERY_REQUIRED and use `/infect normal` or reconnect. No success message is allowed.
+7. During Stage 2 generation, cancel with NORMAL, die, disconnect and disable in separate trials; no stale callback may activate.
+   While Stage 2 is active, repeat the lifecycle table above. Test death/respawn, plugin disable, foreign skin replacement,
+   mid-infection foreign speed changes, air/water/flying/gliding/riding and restoration.
+8. `/infect status` must report actual server bounding box and pose. Stage 2 intentionally leaves scale and collision dimensions
+   unchanged; it does not achieve 1.5 × 3. Do not infer client dimensions from the server box. Verify this alongside foreign scale effects.
+9. With Bedrock/Geyser/floodgate, `/infect stage2` must stay NORMAL and explain unsupported transformation. Observing a changed Java
+   player is a separate unverified test; record versions/results. Do not treat Java profile readback as proof of Bedrock display.

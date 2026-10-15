@@ -23,15 +23,24 @@ jobs:
         run: mvn --batch-mode --no-transfer-progress package
       - name: Generate intensity comparison previews
         run: java -Djava.awt.headless=true -cp target/test-classes:target/classes pl.infectedmorph.skin.Stage1PreviewSamples target/stage1-previews
+      - name: Generate Stage 2 comparison previews
+        # Samples are reproducible from the same original source, never a stored infected PNG.
+        run: java -Djava.awt.headless=true -cp target/test-classes:target/classes pl.infectedmorph.skin.Stage2PreviewSamples target/stage2-previews
       - name: Save test plugin
         uses: actions/upload-artifact@v4
         with:
           name: InfectedMorph-test-jar
-          path: target/InfectedMorph-0.3.0-SNAPSHOT.jar
+          path: target/InfectedMorph-0.4.0-SNAPSHOT.jar
           if-no-files-found: error
       - name: Save visual inspection samples
         uses: actions/upload-artifact@v4
         with:
           name: InfectedMorph-stage1-previews
           path: target/stage1-previews/
+          if-no-files-found: error
+      - name: Save Stage 2 comparison samples
+        uses: actions/upload-artifact@v4
+        with:
+          name: InfectedMorph-stage2-previews
+          path: target/stage2-previews/
           if-no-files-found: error

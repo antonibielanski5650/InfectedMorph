@@ -17,6 +17,7 @@ import pl.infectedmorph.appearance.*;
 import pl.infectedmorph.compat.ClientDetector;
 import pl.infectedmorph.domain.InfectionStage;
 import pl.infectedmorph.domain.ActivationTransaction;
+import pl.infectedmorph.domain.StageTransition;
 import pl.infectedmorph.movement.BukkitMovementPort;
 import pl.infectedmorph.movement.Stage1Movement;
 import pl.infectedmorph.movement.Stage1SprintListener;
@@ -41,6 +42,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     private final ClientDetector detector = new ClientDetector();
     private final AppearanceBackend backend = new JavaProfileBackend();
     private final Stage1SkinGenerator generator = new Stage1SkinGenerator();
+    private final Stage2SkinGenerator stage2Generator = new Stage2SkinGenerator();
     private final Stage1Movement movement = new Stage1Movement();
     private final java.util.Set<UUID> movementWarnings = new java.util.HashSet<>();
     private ExecutorService worker;
@@ -48,6 +50,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     private SkinDownloader downloader;
     private SkinPublisher publisher;
     private boolean stage1Enabled;
+    private boolean stage2Enabled;
     private InfectionIntensity intensity;
     private EyeTreatment eyes;
     private String publicationStatus;
@@ -55,6 +58,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
 
     private static final class Session {
         InfectionStage stage = InfectionStage.NORMAL;
+        InfectionStage target = InfectionStage.STAGE1;
         String state = "NORMAL";
         String detail = "Normal appearance.";
         PlayerProfile original;
@@ -68,6 +72,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     @Override public void onEnable() {
         saveDefaultConfig();
         stage1Enabled = getConfig().getBoolean("stage1.enabled", true);
+        stage2Enabled = getConfig().getBoolean("stage2.enabled", true);
         try { intensity = InfectionIntensity.parse(getConfig().getString("stage1.infection-intensity", "medium")); }
         catch (IllegalArgumentException invalid) {
             intensity = InfectionIntensity.MEDIUM;
@@ -99,12 +104,12 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         Bukkit.getPluginManager().registerEvents(this, this);
         Bukkit.getPluginManager().registerEvents(new Stage1SprintListener(movement, player -> endStage(player, false)), this);
         for (Player player : Bukkit.getOnlinePlayers()) releaseMovement(player);
-        Bukkit.getScheduler().runTaskTimer(this, this::maintainStage1, 1L, 1L);
+        Bukkit.getScheduler().runTaskTimer(this, this::maintainInfection, 1L, 1L);
         getLogger().info("Server: " + Bukkit.getVersion() + "; Java: " + Runtime.version());
         getLogger().info("Stage 1 enabled=" + stage1Enabled + "; intensity=" + intensity.configValue() + "; eyes=" + eyes.mode() + "; " + publicationStatus);
         getLogger().info("Geyser-Spigot=" + version("Geyser-Spigot") + "; floodgate=" + version("floodgate"));
         getLogger().info(detector.skinCapabilities());
-        getLogger().warning("Bedrock skin transformation is not implemented yet. Java-to-Bedrock visibility is unverified. Stages 2-5 and 3D models are not implemented.");
+        getLogger().warning("Bedrock skin transformation is not implemented yet. Java-to-Bedrock visibility is unverified. Stages 3-5 and 3D models are not implemented. Stage 2 exact 1.5 x 3 dimensions are unsupported; size is unchanged.");
     }
 
     private int bounded(String path, int fallback, int min, int max) {
@@ -138,27 +143,42 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     }
 
     @Override public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (args.length != 1) { say(sender, "Usage: /infect <stage1|normal|status>"); return true; }
+        if (args.length != 1) { say(sender, "Usage: /infect <stage1|stage2|normal|status>"); return true; }
         String subcommand = args[0].toLowerCase(Locale.ROOT);
-        if (!List.of("stage1", "normal", "status").contains(subcommand)) { say(sender, "Unknown option. Usage: /infect <stage1|normal|status>"); return true; }
+        if (!List.of("stage1", "stage2", "normal", "status").contains(subcommand)) { say(sender, "Unknown option. Usage: /infect <stage1|stage2|normal|status>"); return true; }
         if (!sender.hasPermission("infectedmorph." + subcommand)) { say(sender, "You do not have permission to use this command. Required: infectedmorph." + subcommand); return true; }
         if (subcommand.equals("status")) { status(sender); return true; }
         if (!(sender instanceof Player player)) { say(sender, "Only players can use this command."); return true; }
-        if (subcommand.equals("normal")) normal(player); else stage1(player);
+        if (subcommand.equals("normal")) normal(player); else transform(player, subcommand.equals("stage2") ? InfectionStage.STAGE2 : InfectionStage.STAGE1);
         return true;
     }
 
-    private void stage1(Player player) {
+    private void transform(Player player, InfectionStage target) {
         Session previous = sessions.get(player.getUniqueId());
         reconcile(player, previous);
-        if (previous != null && previous.stage == InfectionStage.STAGE1) { say(player, "Stage 1 is already set in your server profile. Use /infect normal to restore your skin."); return; }
-        if (player.isDead() || player.getHealth() <= 0) { say(player, "You must respawn before starting Stage 1."); return; }
+        if (previous != null && previous.stage == target) { say(player, target.label() + " is already set in your server profile. Use /infect normal to restore your skin."); return; }
+        if (player.isDead() || player.getHealth() <= 0) { say(player, "You must respawn before starting an infection stage."); return; }
+        // A transition releases the old stage first. Failure leaves NORMAL, never a half-active target.
+        // The original profile is retained before restoration; an infected live profile is never a source.
+        PlayerProfile retainedOriginal = null;
+        if (previous != null && previous.stage != InfectionStage.NORMAL) {
+            PlayerProfile originalSnapshot = previous.original;
+            try {
+                retainedOriginal = StageTransition.restoreBeforeTransition(originalSnapshot::clone,
+                        () -> endStage(player, false), () -> !sessions.containsKey(player.getUniqueId()));
+            } catch (RuntimeException recovery) {
+                say(player, "Stage transition stopped: original appearance or movement recovery is pending. Use /infect normal.");
+                return;
+            }
+            previous = null;
+        }
         if (previous != null && previous.appliedValue != null) { say(player, "Appearance recovery is pending. Use /infect normal before starting another transformation."); return; }
-        if (movement.cleanupPending(player.getUniqueId())) { say(player, "Movement cleanup is pending. Stage 1 cannot start yet."); return; }
+        if (movement.cleanupPending(player.getUniqueId())) { say(player, "Movement cleanup is pending. A transformation cannot start yet."); return; }
         if (previous != null && previous.job != null && !previous.job.isDone()) { say(player, "A skin task is already running. Use /infect normal to cancel it."); return; }
         Session session = new Session();
+        session.target = target;
         sessions.put(player.getUniqueId(), session);
-        if (!stage1Enabled) { blocked(player, session, "Stage 1 is disabled in config.yml."); return; }
+        if (target == InfectionStage.STAGE1 ? !stage1Enabled : !stage2Enabled) { blocked(player, session, target.label() + " is disabled in config.yml."); return; }
         var detection = detector.detect(player.getUniqueId());
         if (detection.kind() != ClientDetector.Kind.JAVA) {
             blocked(player, session, detection.kind() == ClientDetector.Kind.BEDROCK
@@ -166,7 +186,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
                     : detection.detail());
             return;
         }
-        PlayerProfile original = player.getPlayerProfile();
+        PlayerProfile original = retainedOriginal != null ? retainedOriginal : player.getPlayerProfile();
         if (original.getTextures().getSkin() == null) {
             blocked(player, session, "Your profile has no skin texture. No default skin will be substituted. Check online-mode or your skin provider.");
             return;
@@ -184,15 +204,17 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             session.job = worker.submit(() -> {
                 try {
                     var image = downloader.download(source);
-                    var infected = generator.generate(image, model, id, intensity, eyes);
+                    var infected = target == InfectionStage.STAGE1
+                            ? generator.generate(image, model, id, intensity, eyes)
+                            : stage2Generator.generate(image, model, id, intensity, eyes);
                     byte[] originalPng = png(image), infectedPng = png(infected);
                     if (Thread.currentThread().isInterrupted()) throw new InterruptedException();
                     Path directory = previewRoot.resolve(id.toString());
                     Files.createDirectories(directory);
                     writeAtomic(directory.resolve("original.png"), originalPng);
-                    writeAtomic(directory.resolve("stage1.png"), infectedPng);
+                    writeAtomic(directory.resolve(target.command() + ".png"), infectedPng);
                     SignedTexture texture = publisher == null ? null : publisher.publish(infectedPng, model);
-                    WorkResult result = new WorkResult(texture, "previews/" + id + "/stage1.png");
+                    WorkResult result = new WorkResult(texture, "previews/" + id + "/" + target.command() + ".png");
                     schedule(() -> finish(player, session, result));
                 } catch (InterruptedException interrupted) { Thread.currentThread().interrupt(); }
                 catch (Exception error) {
@@ -203,7 +225,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
                         session.state = "ERROR";
                         session.detail = detail;
                         say(player, "Your stage remains NORMAL. " + detail);
-                        getLogger().warning("Stage1 " + id + ": " + detail);
+                        getLogger().warning(target.label() + " " + id + ": " + detail);
                     });
                 }
             });
@@ -217,14 +239,14 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         if (result.texture() == null) {
             session.state = "PREVIEW_READY";
             session.detail = "PNG: " + result.preview() + "; intensity=" + intensity.configValue() + "; " + publicationStatus;
-            say(player, "Stage 1 infection preview generated successfully! PNG: " + result.preview() + ". Your skin has not changed; your stage is NORMAL.");
+            say(player, session.target.label() + " infection preview generated successfully! PNG: " + result.preview() + ". Your skin has not changed; your stage is NORMAL.");
             return;
         }
         if (!textures(player.getPlayerProfile()).equals(textures(session.original))) {
             blocked(player, session, "Your skin changed during generation. The result was discarded; please run the command again.");
             return;
         }
-        if (!player.hasPermission("infectedmorph.stage1") || detector.detect(player.getUniqueId()).kind() != ClientDetector.Kind.JAVA) {
+        if (!player.hasPermission("infectedmorph." + session.target.command()) || detector.detect(player.getUniqueId()).kind() != ClientDetector.Kind.JAVA) {
             blocked(player, session, "Your permissions or client type changed. The result was discarded.");
             return;
         }
@@ -238,22 +260,23 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
                         throw new IllegalStateException("Signed texture verification failed.");
                     }
                 },
-                () -> movement.activate(player.getUniqueId(), new BukkitMovementPort(player)),
+                () -> movement.activate(player.getUniqueId(), new BukkitMovementPort(player), session.target),
                 () -> movement.clear(player.getUniqueId(), new BukkitMovementPort(player)),
                 () -> backend.restore(player, session.original));
         if (activation.outcome() == ActivationTransaction.Outcome.ACTIVE) {
-            session.stage = InfectionStage.STAGE1;
+            session.stage = session.target;
             session.state = "JAVA_PROFILE_APPLIED";
-            session.detail = "Signed Java texture verified; native self/observer refresh requested. Rendering UNVERIFIED. Walking target: 4 blocks/s; sprinting blocked.";
-            say(player, "Stage 1 is active: Java profile applied, walking target 4 blocks/s, sprinting disabled. Verify F5 and another Java observer; client rendering is not confirmed.");
+            session.detail = "Signed Java texture verified; native self/observer refresh requested. Rendering UNVERIFIED. " + movementDescription(session.stage);
+            say(player, session.stage.label() + " is active: Java profile applied. " + movementDescription(session.stage) + " Verify F5 and another Java observer; client rendering is not confirmed.");
+            if (session.stage == InfectionStage.STAGE2) say(player, "Size unchanged: exact 1.5-block width and 3-block height are unsupported by the public scale API.");
         } else if (activation.outcome() == ActivationTransaction.Outcome.ROLLED_BACK) {
             session.appliedValue = null;
             session.appliedSignature = null;
-            blocked(player, session, "Transformation failed. The original skin is restored and Stage 1 movement is disabled.");
+            blocked(player, session, "Transformation failed. The original skin is restored and infection movement is disabled.");
         } else {
             session.stage = InfectionStage.NORMAL;
             session.state = "RECOVERY_REQUIRED";
-            session.detail = "Transformation failed and recovery is incomplete. Stage 1 is NOT active. Sprint policy is released; modifier cleanup is retried. Use /infect normal or reconnect.";
+            session.detail = "Transformation failed and recovery is incomplete. No infection stage is active. Sprint policy is released; modifier cleanup is retried. Use /infect normal or reconnect.";
             say(player, session.detail);
         }
     }
@@ -272,7 +295,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         if (session != null && session.appliedValue != null && ownsTexture(player, session)) {
             if (deferAppearance || player.isDead()) {
                 session.state = "RESTORE_PENDING_RESPAWN";
-                session.detail = "Stage 1 ended on death. Movement restrictions released; original skin restoration is deferred until respawn.";
+                session.detail = "Infection ended on death. Movement restrictions released; original skin restoration is deferred until respawn.";
                 if (notify) say(player, session.detail);
                 return;
             }
@@ -284,7 +307,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             }
             catch (RuntimeException error) {
                 session.state = "RECOVERY_REQUIRED";
-                session.detail = "Stage 1 is NOT active. Appearance restoration failed; movement restrictions have been released or queued for cleanup. Use /infect normal or reconnect.";
+                session.detail = "No infection stage is active. Appearance restoration failed; movement restrictions have been released or queued for cleanup. Use /infect normal or reconnect.";
                 if (notify) say(player, session.detail);
                 getLogger().warning("Restoration for " + player.getUniqueId() + ": " + error.getClass().getSimpleName());
                 return;
@@ -297,14 +320,14 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         if (!movementReleased) {
             if (session == null) { session = new Session(); sessions.put(player.getUniqueId(), session); }
             session.state = "RECOVERY_REQUIRED";
-            session.detail = "Stage 1 is NOT active. Sprint policy released; walking-modifier cleanup is pending and will be retried.";
+            session.detail = "No infection stage is active. Sprint policy released; walking-modifier cleanup is pending and will be retried.";
             if (notify) say(player, session.detail);
             return;
         }
         sessions.remove(player.getUniqueId());
-        if (notify) say(player, external ? "Another plugin changed your skin. Stage 1 movement was removed without overwriting that texture."
+        if (notify) say(player, external ? "Another plugin changed your skin. Infection movement was removed without overwriting that texture."
                 : restored ? "Your original appearance and movement settings have been restored! Your stage is NORMAL."
-                : "Your stage is NORMAL. Pending work is cancelled and Stage 1 movement restrictions are removed.");
+                : "Your stage is NORMAL. Pending work is cancelled and infection movement modifiers are removed.");
     }
 
     private boolean ownsTexture(Player player, Session session) {
@@ -312,7 +335,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     }
 
     private void reconcile(Player player, Session session) {
-        if (session != null && session.stage == InfectionStage.STAGE1 && !ownsTexture(player, session)) {
+        if (session != null && session.stage != InfectionStage.NORMAL && !ownsTexture(player, session)) {
             session.stage = InfectionStage.NORMAL;
             releaseMovement(player);
             session.appliedValue = null;
@@ -346,7 +369,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
 
     private void status(CommandSender sender) {
         say(sender, "Server: " + Bukkit.getVersion() + "; Java " + Runtime.version());
-        say(sender, "Stage 1 enabled=" + stage1Enabled + "; intensity=" + intensity.configValue() + "; eyes=" + eyes.mode() + "; " + publicationStatus);
+        say(sender, "Stage 1 enabled=" + stage1Enabled + "; Stage 2 enabled=" + stage2Enabled + "; shared intensity=" + intensity.configValue() + "; eyes=" + eyes.mode() + "; " + publicationStatus);
         say(sender, "Geyser-Spigot=" + version("Geyser-Spigot") + "; floodgate=" + version("floodgate"));
         say(sender, detector.skinCapabilities());
         say(sender, "Bedrock skin transformation is not implemented yet; Java skin visibility on Bedrock is unverified.");
@@ -357,10 +380,13 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             say(sender, "Client: " + detection.kind() + " (" + detection.detail() + ")");
             say(sender, "Stage: " + (session == null ? InfectionStage.NORMAL : session.stage)
                     + "; state: " + (session == null ? "NORMAL" : session.state));
-            say(sender, "Appearance: " + (session != null && session.stage == InfectionStage.STAGE1
+            say(sender, "Appearance: " + (session != null && session.stage != InfectionStage.NORMAL
                     ? "SIGNED_JAVA_PROFILE_CONFIRMED; client rendering UNVERIFIED" : "not active (preview, normal, or recovery)"));
-            say(sender, "Stage 1 movement: " + (movement.isActive(player.getUniqueId()) ? "ACTIVE; target 4 blocks/s; sprint blocked"
+            say(sender, "Infection movement: " + (movement.isActive(player.getUniqueId()) ? "ACTIVE; " + movementDescription(session.stage)
                     : movement.cleanupPending(player.getUniqueId()) ? "CLEANUP_PENDING; sprint policy released" : "INACTIVE"));
+            say(sender, "Stage 2 size: UNIMPLEMENTED; exact 1.5 x 3 dimensions unsupported. Scale is unchanged.");
+            var box = player.getBoundingBox();
+            say(sender, String.format(Locale.ROOT, "Current server bounding box: %.3f x %.3f x %.3f blocks (width x height x depth); pose=%s.", box.getWidthX(), box.getHeight(), box.getWidthZ(), player.getPose()));
             if (session != null) say(sender, session.detail);
         }
     }
@@ -368,7 +394,7 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
     @Override public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length != 1) return List.of();
         String prefix = args[0].toLowerCase(Locale.ROOT);
-        return List.of("stage1", "normal", "status").stream()
+        return List.of("stage1", "stage2", "normal", "status").stream()
                 .filter(s -> s.startsWith(prefix) && sender.hasPermission("infectedmorph." + s)).toList();
     }
 
@@ -385,10 +411,10 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         }
     }
 
-    private void maintainStage1() {
+    private void maintainInfection() {
         for (var pair : List.copyOf(sessions.entrySet())) {
             Session session = pair.getValue();
-            if (session.stage != InfectionStage.STAGE1) continue;
+            if (session.stage == InfectionStage.NORMAL) continue;
             Player player = Bukkit.getPlayer(pair.getKey());
             if (player == null) {
                 try { movement.deactivate(pair.getKey()); } catch (RuntimeException ignored) { /* tick retries retained cleanup */ }
@@ -399,12 +425,12 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
         for (var failure : movement.tick()) {
             Session session = sessions.get(failure.player());
             Player player = Bukkit.getPlayer(failure.player());
-            if (session != null && session.stage == InfectionStage.STAGE1 && player != null) {
+            if (session != null && session.stage != InfectionStage.NORMAL && player != null) {
                 endStage(player, false);
-                say(player, "Stage 1 ended because movement enforcement failed. Check /infect status.");
+                say(player, "Infection ended because movement enforcement failed. Check /infect status.");
             }
             if (movementWarnings.add(failure.player())) {
-                getLogger().warning("Stage 1 movement error for " + failure.player() + ": " + failure.error().getClass().getSimpleName());
+                getLogger().warning("Infection movement error for " + failure.player() + ": " + failure.error().getClass().getSimpleName());
             }
         }
     }
@@ -462,6 +488,11 @@ public final class InfectedMorphPlugin extends JavaPlugin implements Listener, T
             try { Files.move(temporary, file, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING); }
             catch (java.nio.file.AtomicMoveNotSupportedException e) { Files.move(temporary, file, StandardCopyOption.REPLACE_EXISTING); }
         } finally { Files.deleteIfExists(temporary); }
+    }
+
+    private static String movementDescription(InfectionStage stage) {
+        return stage == InfectionStage.STAGE2 ? "Walking target: 6 blocks/s; sprint target: 9 blocks/s; sprint permitted (normal hunger rules apply)."
+                : "Walking target: 4 blocks/s; sprinting blocked.";
     }
 
     private static void say(CommandSender sender, String message) { sender.sendMessage("[InfectedMorph] " + message); }

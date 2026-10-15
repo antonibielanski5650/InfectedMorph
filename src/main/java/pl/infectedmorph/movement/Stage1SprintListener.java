@@ -17,7 +17,7 @@ public final class Stage1SprintListener implements Listener {
 
     @EventHandler(priority = EventPriority.HIGHEST, ignoreCancelled = false)
     public void onSprint(PlayerToggleSprintEvent event) {
-        if (!event.isSprinting() || !movement.isActive(event.getPlayer().getUniqueId())) return;
+        if (!event.isSprinting() || !movement.blocksSprinting(event.getPlayer().getUniqueId())) return;
         event.setCancelled(true);
         try { movement.handleSprintAttempt(event.getPlayer().getUniqueId(), true); }
         catch (RuntimeException error) { failureHandler.accept(event.getPlayer()); }

@@ -1,33 +1,41 @@
-# InfectedMorph - Stage 1 (0.3.0-SNAPSHOT)
+# InfectedMorph — Stages 1 and 2 (0.4.0-SNAPSHOT)
 
-A standalone Maven plugin targeting Purpur 26.2 and Java 25. No client mods or ChunkVote dependency.
-Stage 1 generates a recognizable infected variant of the player's current 64x64 skin.
-**Java profile application is enabled when a MineSkin API key is configured.** Without a key (or with display disabled),
-only a preview is generated and movement stays normal. Existing configs with `enabled: false` must be changed explicitly.
-Client rendering remains unverified until tested in Minecraft.
-Bedrock skin transformation is not implemented, and Java skin visibility on Bedrock is unverified.
+Standalone Minecraft plugin for **Purpur 26.2 / Java 25**, Maven, standard Java clients and optional LuckPerms.
+The approved Stage 1 appearance is unchanged. Stage 2 adds a separate, more scratched original-skin variant
+and faster ground movement. No ChunkVote dependency, client mods, custom models or resource packs.
 
-## Commands and permissions
+**Java skin application uses MineSkin V2 and the existing Paper profile backend.** A valid environment API key
+and `java-display.enabled: true` are required. Without them, commands generate previews only: stage stays NORMAL,
+with no movement effects. Signed profile readback is verified; F5/observer rendering still requires real client testing.
+Bedrock transformations remain blocked, and Java-to-Bedrock skin visibility remains unverified.
+
+## Commands
 
 | Command | Permission | Behavior |
 | --- | --- | --- |
-| `/infect stage1` | `infectedmorph.stage1` (default: op) | Download the current skin, generate a PNG preview and optionally publish/apply a Java profile. |
-| `/infect normal` | `infectedmorph.normal` (default: true) | Cancel pending work and restore the original texture if InfectedMorph still owns the applied texture. |
-| `/infect status` | `infectedmorph.status` (default: true) | Show stage, task state, intensity, eye mode, client detection, server versions and limitations. Also available in the console. |
+| `/infect stage1` | `infectedmorph.stage1` (op) | Approved Stage 1 skin; approximately 4 blocks/s walking; sprinting blocked. |
+| `/infect stage2` | `infectedmorph.stage2` (op) | Separate Stage 2 skin; approximately 6 blocks/s walking and 9 blocks/s sprinting. |
+| `/infect normal` | `infectedmorph.normal` (everyone) | Cancel pending work, restore original owned texture, remove only owned movement modifier. |
+| `/infect status` | `infectedmorph.status` (everyone) | Actual stage, preview/applied/recovery state, movement, client diagnostics and current server bounding box; console diagnostics supported. |
 
-Permissions use Bukkit's standard `hasPermission`, including LuckPerms. Example:
+Permissions use standard Bukkit `hasPermission`, including LuckPerms:
 
 ```text
 lp user <name> permission set infectedmorph.stage1 true
+lp user <name> permission set infectedmorph.stage2 true
 ```
 
-`PREVIEW_READY` means a PNG was generated, **not** that a skin transformation occurred. The stage stays `NORMAL`.
-Only the opt-in Java backend can set `JAVA_PROFILE_APPLIED`; that reports a server profile update, not client rendering confirmation.
-`RECOVERY_REQUIRED` explicitly reports incomplete recovery after a failed update/rollback. It never reports Stage 1 as active.
-Stage 1 is committed only after signed-profile verification and movement setup both succeed.
-Client rendering is separately reported as `UNVERIFIED`.
+## Stage 2 size limitation
 
-## Visible infection and intensity
+**Exact 1.5-block width AND 3-block height are NOT implemented. Size is left unchanged.**
+The verified 26.2 public API exposes uniform `Attribute.SCALE`, not independent player width/height controls.
+A normal standing player is nominally 0.6 × 1.8 blocks. Scale 1.5 produces 0.9 × 2.7, scale 5/3 produces 1.0 × 3.0,
+and scale 2.5 produces 1.5 × 4.5. None meets the requested pair. Changing a returned bounding box would not resize
+both the rendered player and server collision model. No NMS collision hacks or visual-only fake dimensions are used.
+Scale and other plugins' size modifiers are untouched. Status prints the actual current pose-dependent server bounding box;
+that is not proof of client-rendered dimensions. See [size/API investigation](docs/stage2-size.md).
+
+## Appearance and configuration
 
 ```yaml
 stage1:
@@ -36,172 +44,97 @@ stage1:
   eyes:
     mode: auto
     pixels: ['1,4', '2,4', '5,4', '6,4']
+stage2:
+  enabled: true
 java-display:
   enabled: true
+  mineskin-api-key-env: INFECTEDMORPH_MINESKIN_API_KEY
 ```
 
-| Intensity | Appearance |
-| --- | --- |
-| `low` | Small, translucent bruises and short scratches; subtle infection. |
-| `medium` | Clearly visible irregular bruises, longer cuts and darker eyes; the default. |
-| `high` | More lesions, larger bruises and stronger color contrast for cinematic scenes. |
+Both stages use the existing `stage1.infection-intensity` (`low`, `medium`, `high`) and eye settings. Stage 2 adds
+2/3/4 longer cut paths per UV surface with bounded opacity/coverage. It freshly computes the approved bruise/eye pass
+from **original source pixels**, then adds Stage 2 cuts; it never reads `stage1.png` as an input.
+Stage 1's generator, UV definitions, eye detector, intensity values and original committed preview files are unchanged.
 
-Invalid intensity values produce an English warning and fall back to `medium`. Missing values in older configs also use `medium`.
-Configuration is read at startup; restart the server after editing it. Existing config files are preserved: add the new keys manually
-or back up and regenerate the config. All new defaults are included in the bundled `config.yml`.
+Cuts affect face cheeks, torso, both arms and legs, including body back and side surfaces. Every added path is clipped
+to its own classic/slim UV rectangle; caps and unused slim columns remain unchanged. Every alpha value and hidden RGB data
+in transparent pixels are preserved. Original clothes, hair, nose/mouth and major colors remain recognizable; additional cuts
+are capped at 26% per surface. Detected/custom eye coordinates and contrasting hat/hair face overlays are protected.
+The same original pixels, UUID, model, intensity and eye configuration produce the same texture.
 
-The generator copies original ARGB pixels, applies localized masks and preserves every alpha value, including hidden RGB data
-in fully transparent pixels. Scratches and cuts affect face cheeks, torso, arms and legs, including side/back surfaces and existing
-outer-layer pixels. Bruises have irregular edges. Each mask is clipped to its own UV rectangle; caps, unused slim columns,
-the upper head/hairline and central nose/mouth pixels are preserved. There is no global recoloring, resizing or geometry change.
-The same UUID, source pixels, model, intensity and eye settings reproduce the same result.
+Eye mode `auto` searches for paired contrasting features and skips ambiguous faces; `custom` uses local 8×8 face coordinates;
+`off` leaves eyes unchanged. No assumption that all custom skins have eyes at one position. These are UV/color heuristics,
+not semantic recognition of every hairstyle or clothing pattern. Only standard 64×64 classic/wide and slim PNGs are supported.
+Legacy/HD/persona geometry is rejected safely. Config changes require a restart; existing configs are preserved, and missing
+`stage2.enabled` defaults to true. Missing/invalid intensity defaults to medium with an English warning for invalid values.
 
-Original clothes, hair and most colors remain recognizable. Marks on covered limbs/torso appear as stains or cuts on clothing;
-this is a UV heuristic, not semantic clothing or face recognition. Unusual hair covering cheek pixels cannot always be identified.
-Contrasting hat/hair overlay pixels on the face are protected. Inspect your actual skin before filming.
-Only standard **64x64 PNG**, classic/wide and slim models are supported. Legacy 64x32, HD, persona and custom geometry are rejected.
+[Stage 1 samples](docs/previews/README.md) · [Stage 2 original/Stage 1/Stage 2 comparisons](docs/stage2-previews/README.md)
 
-### Eye settings
+![Classic medium Stage 2 comparison](docs/stage2-previews/classic-medium-comparison.png)
+![Slim medium Stage 2 comparison](docs/stage2-previews/slim-medium-comparison.png)
 
-- `auto`: search multiple rows for paired contrasting features with a consistent surrounding color. Ambiguous/unrecognized faces
-  are left without eye darkening. The detector does not assume all custom skins have eyes at the standard coordinates.
-- `custom`: darken only the configured `pixels`, each an `x,y` pair local to the front face (0..7).
-  This supports asymmetric, shifted and nonhuman eyes. It is a global setting, so use it only for a known compatible skin layout.
-- `off`: disable eye darkening. Invalid eye settings warn and disable it safely.
+These are synthetic front/back/UV samples, **not Minecraft screenshots**.
 
-Darkening grows with intensity. The legacy `stage1.darken-standard-eyes: false` opt-out is still honored if present.
-The custom coordinates are used only in custom mode; the default coordinate list is an example, not an assumption made by auto mode.
+## Movement and transitions
 
-## Generated samples
+The ground model at 20 TPS with full forward input and ordinary block friction 0.6 is:
+`blocks/s ≈ effectiveAttribute × 0.98 / (1 − 0.6 × 0.91) × 20`.
+Walking targets are 4 and 6 blocks/s; Stage 2's sprint target is 9 blocks/s, calibrated using the actual sprint flag
+and effective attribute including vanilla's sprint bonus. Normal hunger restrictions and other plugins' sprint cancellations
+remain respected. Stage 2 does not force sprinting. Sprint changes are recalibrated on the next server tick (nominally 50 ms).
+Allow about ±0.15 blocks/s in repeated stable level-ground trials after a run-in; no real client measurement is claimed.
 
-The samples use original synthetic fixtures, not downloaded player skins. Each model has its original PNG and low/medium/high PNGs:
-[preview files and reproduction instructions](docs/previews/README.md).
+The retained transient key `infectedmorph:stage1_walking` is shared by both stages for compatible cleanup. Only that modifier
+is replaced/removed. Foreign modifiers and current base values remain installed; their ground-speed effects are compensated
+while enforcing the target, and become effective again when the owned modifier is removed. No `setWalkSpeed`, velocity clamp,
+fly speed, swim-speed attribute or scale changes. The ground modifier is suspended in air, water, flight, gliding and vehicles.
+Stage 1 alone blocks the common sprint flag, including sprint-based swim/flight boosts, as in the prior version.
+Ice, slopes, sneaking, jumping, analog input, collisions, knockback and low TPS can change actual speed.
 
-![Classic intensity comparison](docs/previews/classic-comparison.png)
-![Slim intensity comparison](docs/previews/slim-comparison.png)
+A transition first restores NORMAL and retains the original profile snapshot before generating the next stage.
+During publication, movement is unrestricted and stage is NORMAL. Success commits only after signed appearance verification
+AND movement activation. Failure leaves NORMAL with original appearance restored, or explicit `RECOVERY_REQUIRED` if recovery
+fails. The previous infection is not automatically reactivated after failure. Repeated transitions cannot accumulate wounds,
+replace the original snapshot with an infected skin, or stack owned modifiers.
 
-The sheets show a flat, composited front view and the UV map, scaled with nearest-neighbor sampling.
-They are **not Minecraft screenshots** and do not verify client display, lighting or armor interaction.
+Cancellation, online/alive checks, session identity, texture ownership and permissions are checked before application.
+`/infect normal`, death, logout and disable cancel work and clean movement independently of appearance restoration. Death
+restores the original texture one server task after respawn. Cleanup failures retain retries and release sprint policy.
+External skin replacements end infection without overwriting that plugin's texture. Reconnect begins NORMAL. Transient
+modifiers are not saved in player NBT. The signed texture may temporarily remove a cape; NORMAL restores the original property.
 
-## Build and artifact
+## Build, downloads and local testing
 
-Use **JDK 25** and Maven 3.9.x. Check both `java -version` and `mvn -version`, then run:
+Use Java 25 and Maven 3.9.x:
 
 ```sh
 mvn package
 ```
 
-The packaged plugin is `target/InfectedMorph-0.3.0-SNAPSHOT.jar`. Gson is bundled and relocated; Purpur API is `provided`.
-The official Purpur repository and Maven Central must be reachable. For managed proxies, configure Maven's proxy and trusted CA;
-never disable TLS verification. The local cloud proxy previously blocked Purpur with HTTP 403, so the complete build also runs
-in [GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) on Java 25.
-Successful runs provide **InfectedMorph-test-jar** and **InfectedMorph-stage1-previews** downloads.
-The October 14/15 0.1/0.2 artifacts are historical; use the new 0.3.0 artifact linked in draft PR #1.
-[Download the new 0.3.0 JAR ZIP](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086/artifacts/11977610061).
-The [complete Java 25 Maven build](https://github.com/antonibielanski5650/InfectedMorph/actions/runs/38742938086)
-passed all 51 tests (0 failures/errors/skips). This verifies compilation and automated behavior, not client rendering.
-See [verification notes](docs/verification.md) for what was actually checked and what remains unverified.
+Output: `target/InfectedMorph-0.4.0-SNAPSHOT.jar`. Purpur API is pinned to **26.2.build.2621-stable**, scope `provided`;
+Gson is bundled and relocated. The official Purpur repository and Maven Central must be reachable.
+[GitHub Actions](https://github.com/antonibielanski5650/InfectedMorph/actions) runs the full Java 25 build and publishes
+`InfectedMorph-test-jar`, `InfectedMorph-stage1-previews` and `InfectedMorph-stage2-previews` ZIP artifacts.
+Use the 0.4.0 build linked in [draft PR #1](https://github.com/antonibielanski5650/InfectedMorph/pull/1).
+[Verification and current build evidence](docs/verification.md) distinguishes automated checks from client testing.
 
-## Local Purpur testing
+Follow [Windows CMD setup and local Minecraft test steps](docs/local-testing.md) for secure environment-key configuration,
+F5/Java-observer tests, movement measurement, Stage 1 ↔ Stage 2 transitions and failure/lifecycle checks.
+MineSkin publishes generated textures as unlisted (not private). Never put its key in config, logs, chat or Git.
+No reconnect is routinely forced: Paper's native profile setter refreshes self and observers and is checked by signed readback.
 
-1. Create a separate local test server directory. Download Purpur **26.2** from the [official downloads](https://purpurmc.org/downloads).
-   Run it on Java 25 with `java -Xms1G -Xmx2G -jar purpur.jar nogui`, read/accept its EULA yourself, then stop the server.
-2. Place the packaged JAR in `plugins/`. Add compatible Geyser-Spigot/floodgate versions and optionally LuckPerms.
-   Restart fully; do not use `/reload`. Check the English startup diagnostics: `PREVIEW_ONLY` without a key, or `JAVA_PROFILE` when enabled and configured.
-3. For a preview-only baseline, set `java-display.enabled: false` and restart. Join with a Java account using a standard 64x64 skin. Grant the permission and run `/infect status`, then `/infect stage1`.
-   Confirm `PREVIEW_READY` with stage `NORMAL` and a message stating your skin has not changed.
-   Compare `plugins/InfectedMorph/previews/<UUID>/original.png` with `stage1.png`.
-4. Try low, medium and high, restarting between configuration changes. Test classic and slim skins, transparent outer layers,
-   shifted eyes and `auto`/`custom`/`off`. Inspect face, torso, all limb sides and the outer layer before enabling live display.
-5. `/infect normal` must cancel pending work. Repeated `stage1`, exit/rejoin, missing permissions, invalid configuration,
-   unavailable textures and blocked network access must not falsely report a transformation.
-6. For **experimental Java display only**, stop the server, obtain a [MineSkin API key](https://docs.mineskin.org/docs/guides/getting-started/),
-   set the server process environment variable `INFECTEDMORPH_MINESKIN_API_KEY`, and enable `java-display.enabled`.
-   This sends generated skins to an external service as `unlisted` (not private). Never commit or log the key.
-   Allow HTTPS to `api.mineskin.org` and `textures.minecraft.net`; configure JVM networking if your server requires a proxy.
-7. After restarting, test profile application from F5 and a second Java observer, tab list, death/respawn and world changes.
-   Run `normal` and verify restoration of the original skin/model/cape. Test invalid keys, cooldown/HTTP 429,
-   disconnect during generation, restart, and interaction with other skin/nickname plugins.
-8. Connect a Bedrock client through local Geyser-Spigot/floodgate. Status should report `BEDROCK`; Stage 1 must explain that
-   Bedrock skin transformation is not implemented and remain `NORMAL`. Separately inspect any Java player's changed skin
-   from Bedrock, recording actual client/platform/plugin versions. This remains unverified, not supported by assertion.
+## Verified API boundaries
 
-## Safety and lifecycle behavior
+- [Purpur 26.2 source](https://github.com/PurpurMC/Purpur/tree/ver/26.2) and
+  [published build 2621](https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/26.2.build.2621-stable/).
+- [Paper 26.2 attributes](https://jd.papermc.io/paper/26.2/org/bukkit/attribute/Attribute.html),
+  [AttributeInstance](https://jd.papermc.io/paper/26.2/org/bukkit/attribute/AttributeInstance.html),
+  [sprint event](https://jd.papermc.io/paper/26.2/org/bukkit/event/player/PlayerToggleSprintEvent.html).
+- [Paper native profile refresh](https://github.com/PaperMC/Paper/blob/ver/26.2/paper-server/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java).
+- [MineSkin V2](https://docs.mineskin.org/docs/mineskin-api/generate-a-skin/): serialized signed uploads, bounded timeout,
+  cooldown, no automatic 429 retry, validated model/payload and returned texture pixels. No forged/edited signed payloads.
+- [Bedrock investigation](docs/bedrock-investigation.md): official Geyser `SessionSkinApplyEvent` and `sendSkin` are separate
+  mechanisms from Java profiles. Their availability is diagnostic only; a reliable tested Bedrock adapter remains future work.
 
-- Active Stage 1 calibrates ordinary ground walking to approximately 4 blocks/s and blocks sprinting server-side.
-  A named transient movement modifier is removed on normal/death/logout/disable; other modifiers and base values are preserved.
-  No player scale, inventory, extra body parts, effects, flight speed, swim-speed attributes or velocity are set.
-  Stages 2-5, animated models, future monster types and the separate Fuse mutation remain unimplemented.
-- Player/Bukkit calls stay on the main thread. Downloads, generation, file writes and MineSkin publication use one worker
-  and a queue of at most eight jobs. Network response limits, timeouts and disabled redirects are preserved.
-- Only `textures.minecraft.net/texture/<hash>` is accepted, upgraded to HTTPS. PNG dimensions are checked before decoding.
-  Missing textures cause an explicit error; the plugin does not substitute Steve/Alex or guess a Bedrock player's original skin.
-- Cancellation, session identity, permission and source-profile checks prevent stale results from being applied after
-  `normal`, reconnect or another skin change. Restoring only the original `textures` property preserves unrelated profile data.
-- Another plugin's replacement skin is not overwritten. `EXTERNAL_SKIN_CHANGE` reports loss of texture ownership.
-- State is session-local. Death ends Stage 1 immediately and restores the skin after respawn; disconnect/disable attempts
-  restoration. Reconnect starts `NORMAL`. Pending callbacks cannot reactivate a cancelled/dead session.
-  Movement cleanup runs even when skin restoration fails; cleanup failures retain retries and explicit recovery diagnostics.
-- Previews are atomically overwritten per UUID, remain after `normal` and are not served over HTTP. Administrators can remove
-  `previews/` while the server is stopped. The in-memory signed-result cache holds at most 32 entries and resets on restart.
-- The Java backend replaces the full signed `textures` property. A cape may disappear during infection; `normal` restores the
-  original signed property. Payloads are not edited to attach a cape, and signatures are not forged.
-
-## API references and compatibility boundaries
-
-The original implementation checked the following official sources; dependencies remain pinned to the same API:
-
-- [Purpur 26.2](https://github.com/PurpurMC/Purpur/blob/ver/26.2/README.md) and
-  [published API build 2621](https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/26.2.build.2621-stable/).
-  Purpur includes Paper/Bukkit APIs. No open dependency range can silently upgrade to 26.3.
-- [Paper Player](https://jd.papermc.io/paper/26.2/org/bukkit/entity/Player.html) and
-  [PlayerProfile](https://jd.papermc.io/paper/26.2/com/destroystokyo/paper/profile/PlayerProfile.html): copy current profile,
-  retain signed properties, apply through `setPlayerProfile`, preserve UUID.
-- [Floodgate API](https://geysermc.org/wiki/floodgate/api/) and
-  [GeyserApi](https://github.com/GeyserMC/Geyser/blob/master/api/src/main/java/org/geysermc/geyser/api/GeyserApi.java):
-  optional public-API reflection for `isFloodgatePlayer(UUID)` and `connectionByUuid(UUID)`. API failures give `UNKNOWN`
-  and block transformation. Detection targets Geyser-Spigot/floodgate installed on this server; proxy-only arrangements
-  are not claimed as supported. Check [current protocol versions](https://geysermc.org/wiki/geyser/supported-versions/) before installation.
-- [Geyser skin event](https://github.com/GeyserMC/Geyser/blob/master/api/src/main/java/org/geysermc/geyser/api/event/bedrock/SessionSkinApplyEvent.java):
-  together with public `GeyserConnection.sendSkin(UUID, SkinData)` (since 2.8.3) provides skin hooks and explicit refresh.
-  A full cross-edition adapter remains unimplemented; availability is diagnosed, not confused with verified rendering.
-  See the [Bedrock investigation](docs/bedrock-investigation.md).
-- [MineSkin V2](https://docs.mineskin.org/docs/mineskin-api/generate-a-skin/) and
-  [migration format](https://docs.mineskin.org/docs/guides/migrating-to-v2/): multipart upload, classic/slim variants,
-  `skin.texture.data.value/signature`. This prototype serializes the documented synchronous endpoint with cooldown and no
-  automatic retry; the service recommends queue endpoints for larger deployments. Responses are trusted over HTTPS,
-  checked for payload/model validity and verified pixel-for-pixel against the generated image; signatures are not locally verified cryptographically.
-- [Geyser resource packs](https://geysermc.org/wiki/geyser/packs/) and
-  [GeyserModelEngine](https://github.com/GeyserExtensionists/GeyserModelEngine) illustrate separate Bedrock content integration.
-  Stage 1 requires neither resource packs nor ModelEngine, and this project does not claim their future version compatibility.
-
-`InfectionStage`, `Stage1SkinGenerator`, `SkinPublisher` and `AppearanceBackend` keep state, generation, publication and rendering
-separate for later work. No production deployment, ChunkVote modifications or merge into `main` is part of this change.
-
-## Stage 1 movement and live Java setup
-
-See [Windows CMD setup and complete local test checklist](docs/local-testing.md) for the API key, F5/observer tests,
-40-block timing lane, sprint attempts, death/respawn and failure/recovery tests.
-
-The nominal ground model uses 20 TPS, ordinary block friction 0.6 and full forward input:
-`blocks/s ~= attribute * 0.98 / (1 - 0.6 * 0.91) * 20`.
-The target movement attribute is approximately `0.09265306`, giving 4.0 blocks/s at steady state.
-A 40-block straight lane after a 10-block run-in should take about 10 seconds; allow approximately +/-0.15 blocks/s
-under stable 20 TPS and repeat trials. This is a calculated target, not a measured client result.
-
-The transient `infectedmorph:stage1_walking` multiplier compensates current effective ground speed while leaving
-foreign modifiers installed. Their ground-speed effects are temporarily compensated to enforce the fixed target;
-removing our multiplier immediately exposes their current values again. Nothing snapshots and overwrites their changes.
-The modifier is suspended while airborne, swimming/in water, flying, gliding or riding, and reapplied on ground.
-Sprint starts are cancelled for every active player regardless of input device, with a per-tick backup. Because
-Minecraft uses the same sprint flag for sprint-swimming and some flight acceleration, those sprint-based boosts
-are also unavailable while Stage 1 is active. Other swimming, flight, knockback and velocity systems are not directly modified.
-
-Ice, soul sand, stairs/slopes, sneaking, diagonal/analog input, jumping, collisions, knockback, water and low TPS
-are not the level-ground measurement case and can change actual blocks per second. No velocity clamp is used.
-An immobilized/invalid movement attribute or unsafe calibration fails activation and restores appearance.
-
-Paper 26.2's [profile implementation](https://github.com/PaperMC/Paper/blob/ver/26.2/paper-server/src/main/java/org/bukkit/craftbukkit/entity/CraftPlayer.java)
-refreshes self and visible observers through its native player-profile update, including its internal self-refresh packet.
-The plugin uses that API once, validates the signed-property readback and does not add duplicate respawn packets,
-reconnects, fake deaths or hide/show sequences. Verify the result in F5 and with a second client.
+Stages 3–5, custom models, extra animations and Fuse mutations remain unimplemented. No production deployment,
+ChunkVote changes or merge into main is part of this work.

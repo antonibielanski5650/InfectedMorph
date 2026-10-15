@@ -32,6 +32,15 @@ class BukkitMovementPortTest {
         assertEquals(2,modifiers.size());
         assertSame(foreign,modifiers.get(foreign.getKey()));
         verify(attribute,times(1)).addTransientModifier(any(AttributeModifier.class));
+        port.putOwnedModifier(WalkingSpeed.modifierAmount(port.unrestrictedGroundSpeed(),6), WalkingSpeed.attributeFor(6));
+        assertEquals(6, WalkingSpeed.estimateBlocksPerSecond(attribute.getValue()), 1e-9);
+        var sprint = new AttributeModifier(new NamespacedKey("minecraft","sprinting"), .3, AttributeModifier.Operation.MULTIPLY_SCALAR_1);
+        modifiers.put(sprint.getKey(), sprint);
+        port.putOwnedModifier(WalkingSpeed.modifierAmount(port.unrestrictedGroundSpeed(),9), WalkingSpeed.attributeFor(9));
+        assertEquals(9, WalkingSpeed.estimateBlocksPerSecond(attribute.getValue()), 1e-9);
+        port.removeOwnedModifier();
+        assertEquals(Map.of(foreign.getKey(),foreign,sprint.getKey(),sprint), modifiers);
+        modifiers.remove(sprint.getKey()); // Simulate vanilla ending sprint, not plugin cleanup.
         port.removeOwnedModifier();
         assertEquals(Map.of(foreign.getKey(),foreign),modifiers);
         verify(attribute,never()).setBaseValue(anyDouble());

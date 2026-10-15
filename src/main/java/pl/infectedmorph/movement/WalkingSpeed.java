@@ -8,10 +8,19 @@ public final class WalkingSpeed {
     private WalkingSpeed() {}
 
     public static double modifierAmount(double unrestricted) {
+        return modifierAmount(unrestricted, TARGET_BLOCKS_PER_SECOND);
+    }
+
+    public static double attributeFor(double blocksPerSecond) {
+        return blocksPerSecond * (1.0 - .6 * .91) / (20.0 * .98);
+    }
+
+    public static double modifierAmount(double unrestricted, double targetBlocksPerSecond) {
         if (!Double.isFinite(unrestricted) || unrestricted <= 0) {
-            throw new IllegalArgumentException("Stage 1 requires a positive, finite unrestricted movement speed.");
+            throw new IllegalArgumentException("Infection requires a positive, finite unrestricted movement speed.");
         }
-        double amount = TARGET_ATTRIBUTE / unrestricted - 1.0;
+        if (!Double.isFinite(targetBlocksPerSecond) || targetBlocksPerSecond <= 0) throw new IllegalArgumentException("Invalid movement target.");
+        double amount = attributeFor(targetBlocksPerSecond) / unrestricted - 1.0;
         if (!Double.isFinite(amount)) throw new IllegalArgumentException("Movement-speed calibration is outside the supported range.");
         return amount;
     }

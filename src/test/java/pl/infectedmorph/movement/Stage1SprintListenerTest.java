@@ -8,6 +8,19 @@ import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class Stage1SprintListenerTest {
+    @Test void stage2AllowsActualBukkitSprintEventsAndPreservesForeignCancellations() {
+        UUID id = new UUID(7, 2);
+        Player player = mock(Player.class); when(player.getUniqueId()).thenReturn(id);
+        var movement = new Stage1Movement();
+        movement.activate(id, new Stage2MovementTest.Subject(), pl.infectedmorph.domain.InfectionStage.STAGE2);
+        var listener = new Stage1SprintListener(movement, p -> fail("No failure expected"));
+        var start = new PlayerToggleSprintEvent(player, true); listener.onSprint(start);
+        assertFalse(start.isCancelled());
+        var blockedByAnotherPlugin = new PlayerToggleSprintEvent(player, true); blockedByAnotherPlugin.setCancelled(true);
+        listener.onSprint(blockedByAnotherPlugin); assertTrue(blockedByAnotherPlugin.isCancelled());
+        var stop = new PlayerToggleSprintEvent(player, false); listener.onSprint(stop); assertFalse(stop.isCancelled());
+    }
+
     @Test void actualBukkitSprintEventsAreCancelledForActiveStageOnly() {
         UUID id=new UUID(1,2);
         Player player=mock(Player.class);when(player.getUniqueId()).thenReturn(id);

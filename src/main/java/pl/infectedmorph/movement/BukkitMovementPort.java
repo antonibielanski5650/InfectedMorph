@@ -45,7 +45,13 @@ public final class BukkitMovementPort implements MovementPort {
 
     @Override public void stopSprinting() { if (player.isSprinting()) player.setSprinting(false); }
 
+    @Override public boolean isSprinting() { return player.isSprinting(); }
+
     @Override public void putOwnedModifier(double amount) {
+        putOwnedModifier(amount, WalkingSpeed.TARGET_ATTRIBUTE);
+    }
+
+    @Override public void putOwnedModifier(double amount, double targetAttribute) {
         AttributeInstance attribute = attribute();
         AttributeModifier current = attribute.getModifier(KEY);
         if (current != null && current.getOperation() == AttributeModifier.Operation.MULTIPLY_SCALAR_1
@@ -54,9 +60,9 @@ public final class BukkitMovementPort implements MovementPort {
         attribute.addTransientModifier(new AttributeModifier(KEY, amount, AttributeModifier.Operation.MULTIPLY_SCALAR_1));
         AttributeModifier applied = attribute.getModifier(KEY);
         if (applied == null || Math.abs(applied.getAmount() - amount) >= 1.0e-12) {
-            throw new IllegalStateException("The Stage 1 walking modifier was not accepted by the server.");
+            throw new IllegalStateException("The infection movement modifier was not accepted by the server.");
         }
-        if (Math.abs(attribute.getValue() - WalkingSpeed.TARGET_ATTRIBUTE) > 1.0e-6) {
+        if (Math.abs(attribute.getValue() - targetAttribute) > 1.0e-6) {
             throw new IllegalStateException("The effective walking attribute could not be calibrated safely.");
         }
     }
@@ -65,7 +71,7 @@ public final class BukkitMovementPort implements MovementPort {
         AttributeInstance attribute = attributes.get();
         if (attribute != null) {
             attribute.removeModifier(KEY);
-            if (attribute.getModifier(KEY) != null) throw new IllegalStateException("The Stage 1 walking modifier could not be removed.");
+            if (attribute.getModifier(KEY) != null) throw new IllegalStateException("The infection movement modifier could not be removed.");
         }
     }
 }
